@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Home – IrriSmart AI{% endblock %}
+{% block page_title %}Home{% endblock %}
+
+{% block content %}
+
+<!-- ── Hero ─────────────────────────────────────────────── -->
+<section class="hero" data-aos="fade-up">
+  <div class="hero-content">
+    <div class="hero-badge">
+      <i data-lucide="sparkles"></i> Powered by Machine Learning
+    </div>
+    <h1 class="hero-title">
+      Smart Irrigation<br>
+      <span class="gradient-text">Prediction System</span>
+    </h1>
+    <p class="hero-subtitle">
+      Upload your field dataset and let our AI pipeline classify irrigation
+      needs, predict water usage, and discover field clusters — all in seconds.
+    </p>
+
+    <!-- Dynamic Stats -->
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="stat-num">{{ hero_stats.total_records }}</span>
+        <span class="stat-label">Records Processed</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-num">{{ hero_stats.total_features }}</span>
+        <span class="stat-label">Features Used</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-num">{{ hero_stats.total_models }}</span>
+        <span class="stat-label">ML Models</span>
+      </div>
+      {% if trained %}
+      <div class="hero-stat">
+        <span class="stat-num">{{ hero_stats.acc_tuned }}</span>
+        <span class="stat-label">Best Accuracy</span>
+      </div>
+      <div class="hero-stat">
+        <span class="stat-num">{{ hero_stats.r2 }}</span>
+        <span class="stat-label">R² Score</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if trained %}
+    <div class="trained-banner">
+      <i data-lucide="check-circle"></i>
+      Model is trained and ready —
+      <a href="{{ url_for('dashboard') }}">View Dashboard</a> or
+      <a href="{{ url_for('field_predict') }}">Run Field Analysis</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Dynamic Visual Cards -->
+  <div class="hero-visual" data-aos="fade-left" data-aos-delay="200">
+
+    <!-- Card 1: Irrigation Need -->
+    <div class="visual-card">
+      <div class="visual-icon"><i data-lucide="droplets"></i></div>
+      <div class="visual-label">
+        {% if trained %}Most Common Need{% else %}Irrigation Need{% endif %}
+      </div>
+      <div class="visual-value">
+        {% if trained %}
+          <span class="need-color-{{ hero_visuals.irrigation_need | lower }}">
+            {{ hero_visuals.irrigation_need }}
+          </span>
+        {% else %}
+          <span class="pending-val">Train model first</span>
+        {% endif %}
+      </div>
+      <div class="visual-bar">
+        <div class="visual-fill"
+             style="width:{{ hero_visuals.need_fill }}%"></div>
+      </div>
+      {% if trained %}
+      <div class="visual-hint">
+        {{ get_state().target_counts.get(hero_visuals.irrigation_need, 0) }}
+        of {{ get_state().n_rows | default(0) }} records
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 2: Water Needed -->
+    <div class="visual-card" style="margin-top:.75rem">
+      <div class="visual-icon teal"><i data-lucide="thermometer"></i></div>
+      <div class="visual-label">
+        {% if trained %}Avg Water Estimate{% else %}Water Needed{% endif %}
+      </div>
+      <div class="visual-value">
+        {% if trained %}
+          {{ hero_visuals.water_needed }}
+        {% else %}
+          <span class="pending-val">—</span>
+        {% endif %}
+      </div>
+      <div class="visual-bar">
+        <div class="visual-fill teal"
+             style="width:{{ hero_visuals.water_fill }}%"></div>
+      </div>
+      {% if trained %}
+      <div class="visual-hint">
+        RMSE: {{ get_state().rmse }} | MAE: {{ get_state().mae }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 3: Field Cluster -->
+    <div class="visual-card" style="margin-top:.75rem">
+      <div class="visual-icon orange"><i data-lucide="layers"></i></div>
+      <div class="visual-label">
+        {% if trained %}Largest Cluster{% else %}Field Cluster{% endif %}
+      </div>
+      <div class="visual-value">
+        {% if trained %}
+          {{ hero_visuals.field_cluster }}
+        {% else %}
+          <span class="pending-val">—</span>
+        {% endif %}
+      </div>
+      <div class="visual-bar">
+        <div class="visual-fill orange"
+             style="width:{{ hero_visuals.clust_fill }}%"></div>
+      </div>
+      {% if trained %}
+      <div class="visual-hint">
+        K-Means k=3 |
+        {{ get_state().cluster_dist | sum_values }} sampled fields
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Upload Section ─────────────────────────────────── -->
+<section class="upload-section" data-aos="fade-up" data-aos-delay="100">
+  <div class="section-header">
+    <h2><i data-lucide="upload-cloud"></i> Upload Dataset & Train</h2>
+    <p>Upload <code>irrigation_prediction.csv</code> to begin the full ML pipeline.</p>
+  </div>
+
+  <form action="{{ url_for('upload') }}" method="POST"
+        enctype="multipart/form-data" id="uploadForm">
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon"><i data-lucide="file-up"></i></div>
+      <div class="drop-text">
+        <strong>Drag & Drop</strong> your CSV here<br>
+        or <label for="fileInput" class="drop-link">browse files</label>
+      </div>
+      <input type="file" name="file" id="fileInput"
+             accept=".csv" hidden required/>
+      <div class="drop-hint">Supports .csv · Max 32 MB</div>
+      <div class="drop-filename" id="dropFilename"></div>
+    </div>
+
+    <div class="upload-actions">
+      <button type="submit" class="btn btn-primary" id="trainBtn">
+        <i data-lucide="play-circle"></i>
+        {% if trained %}Re-Train Pipeline{% else %}Train ML Pipeline{% endif %}
+      </button>
+      {% if trained %}
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline">
+          <i data-lucide="layout-dashboard"></i> Dashboard
+        </a>
+        <a href="{{ url_for('field_predict') }}" class="btn btn-outline">
+          <i data-lucide="flask-conical"></i> Field Predict
+        </a>
+      {% endif %}
+    </div>
+
+    <div class="progress-wrap hidden" id="progressWrap">
+      <div class="progress-bar-outer">
+        <div class="progress-bar-inner" id="progressBar"></div>
+      </div>
+      <p class="progress-label" id="progressLabel">Initialising pipeline…</p>
+    </div>
+  </form>
+</section>
+
+<!-- ── Training Summary (only after training) ──────────── -->
+{% if trained %}
+{% set _st = get_state() %}
+<section class="training-summary" data-aos="fade-up">
+  <div class="section-header">
+    <h2><i data-lucide="clipboard-check"></i> Last Training Summary</h2>
+    <p>Live results from the most recent pipeline run</p>
+  </div>
+  <div class="summary-grid">
+    {% for label, value, color, icon in [
+      ("Dataset Rows",     "{:,}".format(_st.n_rows),           "#3B82F6", "database"),
+      ("Dataset Columns",  _st.n_cols | string,                  "#8B5CF6", "table"),
+      ("Features Used",    _st.n_features | string,              "#10B981", "list"),
+      ("Baseline Acc",     "{:.4f}".format(_st.acc_base),        "#F59E0B", "target"),
+      ("Tuned Acc",        "{:.4f}".format(_st.acc_tuned),       "#3B82F6", "zap"),
+      ("CV Mean Acc",      "{:.4f}".format(_st.cv_mean),         "#8B5CF6", "activity"),
+      ("CV Std Dev",       "{:.4f}".format(_st.cv_std),          "#6366F1", "minus"),
+      ("RMSE",             "{:.4f}".format(_st.rmse),            "#EF4444", "bar-chart"),
+      ("MAE",              "{:.4f}".format(_st.mae),             "#F97316", "minus-circle"),
+      ("R² Score",         "{:.4f}".format(_st.r2),              "#10B981", "trending-up"),
+      ("DBSCAN Clusters",  _st.n_clusters_db | string,           "#F59E0B", "layers"),
+      ("Noise Points",     "{:,}".format(_st.n_noise),           "#EF4444", "alert-circle"),
+    ] %}
+    <div class="summary-card" style="border-left:3px solid {{ color }}">
+      <div class="summary-icon" style="color:{{ color }}">
+        <i data-lucide="{{ icon }}"></i>
+      </div>
+      <div>
+        <div class="summary-value">{{ value }}</div>
+        <div class="summary-label">{{ label }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<!-- ── Feature Cards ──────────────────────────────────── -->
+<section class="features-section" data-aos="fade-up">
+  <h2 class="section-title">What the Pipeline Does</h2>
+  <div class="feature-grid">
+    {% set features = [
+      ("bar-chart-2",  "EDA",                  "Explore distributions, correlations, and class balance automatically.",    "#3B82F6"),
+      ("cpu",          "Classification",        "Random Forest predicts Low / Medium / High irrigation need.",              "#8B5CF6"),
+      ("trending-up",  "Regression",            "Predict exact water usage in millimetres with high accuracy.",             "#10B981"),
+      ("sliders",      "Hyperparameter Tuning", "GridSearchCV finds the optimal model configuration over 54 combos.",       "#F59E0B"),
+      ("layers",       "Clustering",            "K-Means, DBSCAN & Agglomerative group similar fields automatically.",      "#EF4444"),
+      ("pie-chart",    "Visualisations",        "13+ rich charts auto-generated and displayed in the dashboard.",           "#6366F1"),
+    ] %}
+    {% for icon, title, desc, color in features %}
+    <div class="feature-card" data-aos="zoom-in"
+         data-aos-delay="{{ loop.index0 * 80 }}">
+      <div class="feature-icon"
+           style="background:{{ color }}22; color:{{ color }}">
+        <i data-lucide="{{ icon }}"></i>
+      </div>
+      <h3>{{ title }}</h3>
+      <p>{{ desc }}</p>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Drag & Drop ──────────────────────────────────────────
+const zone = document.getElementById("dropZone");
+const inp  = document.getElementById("fileInput");
+const fn   = document.getElementById("dropFilename");
+
+zone.addEventListener("click", () => inp.click());
+zone.addEventListener("dragover",  e => {
+  e.preventDefault();
+  zone.classList.add("drag-over");
+});
+zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+zone.addEventListener("drop", e => {
+  e.preventDefault();
+  zone.classList.remove("drag-over");
+  if (e.dataTransfer.files.length) {
+    inp.files = e.dataTransfer.files;
+    fn.textContent = "📄 " + e.dataTransfer.files[0].name;
+    fn.classList.add("visible");
+  }
+});
+inp.addEventListener("change", () => {
+  if (inp.files.length) {
+    fn.textContent = "📄 " + inp.files[0].name;
+    fn.classList.add("visible");
+  }
+});
+
+// ── Progress simulation ──────────────────────────────────
+document.getElementById("uploadForm").addEventListener("submit", () => {
+  const wrap  = document.getElementById("progressWrap");
+  const bar   = document.getElementById("progressBar");
+  const label = document.getElementById("progressLabel");
+  const btn   = document.getElementById("trainBtn");
+  wrap.classList.remove("hidden");
+  btn.disabled = true;
+  btn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Training…';
+  lucide.createIcons();
+  let pct = 0;
+  const msgs = [
+    "Loading dataset…", "Running EDA…", "Training classifier…",
+    "Training regressor…", "Tuning hyperparameters…",
+    "Running clustering…", "Saving charts…", "Finalising…",
+  ];
+  let mi = 0;
+  setInterval(() => {
+    pct = Math.min(pct + Math.random() * 4 + 1, 95);
+    bar.style.width = pct + "%";
+    if (mi < msgs.length - 1 && pct > (mi + 1) * 12) {
+      mi++;
+      label.textContent = msgs[mi];
+    }
+  }, 400);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – IrriSmart AI{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- ── Metric Cards ──────────────────────────────────────── -->
+<div class="metrics-grid" data-aos="fade-up">
+  {% for icon, label, value, unit, color, sub in [
+    ("check-circle", "Baseline Accuracy",  state.acc_base  | string, "%", "#3B82F6", "Classification"),
+    ("zap",          "Tuned Accuracy",      state.acc_tuned | string, "%", "#8B5CF6", "After GridSearch"),
+    ("activity",     "CV Mean Accuracy",    state.cv_mean   | string, "%", "#10B981", "5-Fold Cross-Val"),
+    ("target",       "R² Score",            state.r2        | string, "",  "#F59E0B", "Regression"),
+    ("bar-chart",    "RMSE",                state.rmse      | string, "mm","#EF4444", "Regression"),
+    ("minus-circle", "MAE",                 state.mae       | string, "mm","#6366F1", "Regression"),
+  ] %}
+  <div class="metric-card"
+       data-aos="zoom-in"
+       data-aos-delay="{{ loop.index0 * 60 }}"
+       style="border-top:3px solid {{ color }}">
+    <div class="metric-icon" style="color:{{ color }}">
+      <i data-lucide="{{ icon }}"></i>
+    </div>
+    <div class="metric-body">
+      <div class="metric-value">
+        {{ value }}<span class="metric-unit">{{ unit }}</span>
+      </div>
+      <div class="metric-label">{{ label }}</div>
+      <div class="metric-sub">{{ sub }}</div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- ── Charts Row ─────────────────────────────────────────── -->
+<div class="charts-row" data-aos="fade-up">
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3><i data-lucide="pie-chart"></i> Irrigation Need Distribution</h3>
+    </div>
+    <canvas id="targetChart" height="220"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3><i data-lucide="layers"></i> K-Means Cluster Distribution</h3>
+    </div>
+    <canvas id="clusterChart" height="220"></canvas>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3><i data-lucide="activity"></i> Cross-Validation Scores</h3>
+    </div>
+    <canvas id="cvChart" height="220"></canvas>
+  </div>
+
+</div>
+
+<!-- ── Info Row ───────────────────────────────────────────── -->
+<div class="info-row" data-aos="fade-up">
+
+  <!-- Best Hyperparameters -->
+  <div class="info-card">
+    <div class="info-header">
+      <i data-lucide="sliders"></i>
+      <h3>Best Hyperparameters</h3>
+    </div>
+    <div class="params-grid">
+      {% for k, v in state.best_params.items() %}
+      <div class="param-item">
+        <span class="param-key">{{ k.replace('_',' ') }}</span>
+        <span class="param-val">{{ v }}</span>
+      </div>
+      {% endfor %}
+      <div class="param-item">
+        <span class="param-key">Best CV Accuracy</span>
+        <span class="param-val highlight">{{ state.best_cv_acc }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dataset Summary -->
+  <div class="info-card">
+    <div class="info-header">
+      <i data-lucide="database"></i>
+      <h3>Dataset Summary</h3>
+    </div>
+    <div class="params-grid">
+      {% for k, v in [
+        ("Total Records",   "{:,}".format(state.n_rows)),
+        ("Total Columns",   state.n_cols),
+        ("Features Used",   state.n_features),
+        ("DBSCAN Clusters", state.n_clusters_db),
+        ("Noise Points",    "{:,}".format(state.n_noise)),
+      ] %}
+      <div class="param-item">
+        <span class="param-key">{{ k }}</span>
+        <span class="param-val">{{ v }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ✅ Fixed Classification Report Card -->
+  <div class="info-card">
+    <div class="info-header">
+      <i data-lucide="clipboard-list"></i>
+      <h3>Classification Report</h3>
+    </div>
+
+    <div class="clf-report">
+      <!-- Header -->
+      <div class="clf-report-head">
+        <span>Class</span>
+        <span>Precision</span>
+        <span>Recall</span>
+        <span>F1</span>
+        <span>Support</span>
+      </div>
+
+      <!-- Rows -->
+      {% for cls, color in [
+        ("Low",    "#10B981"),
+        ("Medium", "#F59E0B"),
+        ("High",   "#EF4444"),
+      ] %}
+      {% set r = state.report.get(cls, {}) %}
+      <div class="clf-report-row"
+           style="border-left:3px solid {{ color }}">
+        <span>
+          <span class="clf-cls-dot"
+                style="background:{{ color }}"></span>
+          {{ cls }}
+        </span>
+        <span>
+          <div class="clf-metric-wrap">
+            <div class="clf-metric-bar"
+                 style="width:{{ (r.get('precision',0)*100)|round|int }}%;
+                        background:{{ color }}40"></div>
+            <span class="clf-metric-val">
+              {{ "%.3f"|format(r.get("precision", 0)) }}
+            </span>
+          </div>
+        </span>
+        <span>
+          <div class="clf-metric-wrap">
+            <div class="clf-metric-bar"
+                 style="width:{{ (r.get('recall',0)*100)|round|int }}%;
+                        background:{{ color }}40"></div>
+            <span class="clf-metric-val">
+              {{ "%.3f"|format(r.get("recall", 0)) }}
+            </span>
+          </div>
+        </span>
+        <span>
+          <div class="clf-metric-wrap">
+            <div class="clf-metric-bar"
+                 style="width:{{ (r.get('f1-score',0)*100)|round|int }}%;
+                        background:{{ color }}40"></div>
+            <span class="clf-metric-val">
+              {{ "%.3f"|format(r.get("f1-score", 0)) }}
+            </span>
+          </div>
+        </span>
+        <span class="clf-support">
+          {{ r.get("support", 0) | int }}
+        </span>
+      </div>
+      {% endfor %}
+
+      <!-- Overall Accuracy -->
+      {% set acc_r = state.report.get("accuracy", 0) %}
+      <div class="clf-report-accuracy">
+        <span class="clf-acc-label">Overall Accuracy</span>
+        <div class="clf-acc-bar-wrap">
+          <div class="clf-acc-bar"
+               style="width:{{ (acc_r * 100)|round|int }}%">
+          </div>
+        </div>
+        <span class="clf-acc-val">{{ "%.4f"|format(acc_r) }}</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Chart Gallery ──────────────────────────────────────── -->
+<div class="plot-section" data-aos="fade-up">
+  <div class="plot-header">
+    <h2><i data-lucide="image"></i> Generated Charts</h2>
+    <p>All charts produced by the ML pipeline — click any to enlarge</p>
+  </div>
+  <div class="plot-grid">
+    {% set chart_list = [
+      (state.plots.eda_distributions,    "EDA Distributions"),
+      (state.plots.target_distribution,  "Target Distribution"),
+      (state.plots.correlation_heatmap,  "Correlation Heatmap"),
+      (state.plots.confusion_matrix,     "Confusion Matrix"),
+      (state.plots.feat_imp_clf,         "Feature Importance – CLF"),
+      (state.plots.regression_results,   "Regression Results"),
+      (state.plots.feat_imp_reg,         "Feature Importance – REG"),
+      (state.plots.gridsearch_heatmap,   "GridSearch Heatmap"),
+      (state.plots.overfitting_analysis, "Overfitting Analysis"),
+      (state.plots.kmeans_elbow,         "K-Means Elbow"),
+      (state.plots.dendrogram,           "Dendrogram"),
+      (state.plots.clustering_pca,       "Clustering PCA"),
+      (state.plots.cluster_radar,        "Cluster Radar"),
+    ] %}
+    {% for src, caption in chart_list %}
+    <div class="plot-card" data-aos="zoom-in">
+      <img src="{{ url_for('static', filename=src) }}"
+           alt="{{ caption }}"
+           loading="lazy"
+           onclick="openLightbox(this.src, '{{ caption }}')"/>
+      <div class="plot-caption">{{ caption }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-inner" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeLightbox()">
+      <i data-lucide="x"></i>
+    </button>
+    <img id="lightboxImg" src="" alt=""/>
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const targetData  = {{ state.target_counts | tojson }};
+const clusterData = {{ state.cluster_dist  | tojson }};
+const cvData      = {{ state.cv_scores     | tojson }};
+
+// Target doughnut
+new Chart(document.getElementById("targetChart"), {
+  type: "doughnut",
+  data: {
+    labels: Object.keys(targetData),
+    datasets: [{
+      data           : Object.values(targetData),
+      backgroundColor: ["#10B981", "#3B82F6", "#8B5CF6"],
+      borderWidth    : 3,
+      borderColor    : getComputedStyle(document.documentElement)
+                         .getPropertyValue("--surface") || "#fff",
+    }]
+  },
+  options: {
+    cutout : "65%",
+    plugins: {
+      legend : { position: "bottom" },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${ctx.raw.toLocaleString()}`
+        }
+      }
+    }
+  }
+});
+
+// Cluster bar
+new Chart(document.getElementById("clusterChart"), {
+  type: "bar",
+  data: {
+    labels: Object.keys(clusterData),
+    datasets: [{
+      label          : "Fields",
+      data           : Object.values(clusterData),
+      backgroundColor: ["#3B82F6", "#10B981", "#F59E0B"],
+      borderRadius   : 8,
+      borderSkipped  : false,
+    }]
+  },
+  options: {
+    plugins: { legend: { display: false } },
+    scales : {
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, grid: { color: "#f0f0f050" } }
+    }
+  }
+});
+
+// CV line
+new Chart(document.getElementById("cvChart"), {
+  type: "line",
+  data: {
+    labels: cvData.map((_, i) => `Fold ${i + 1}`),
+    datasets: [{
+      label           : "Accuracy",
+      data            : cvData,
+      borderColor     : "#3B82F6",
+      backgroundColor : "#3B82F633",
+      fill            : true,
+      tension         : 0.4,
+      pointBackgroundColor: "#3B82F6",
+      pointRadius     : 6,
+    }]
+  },
+  options: {
+    scales : {
+      y: { min: 0.9, max: 1.0, grid: { color: "#f0f0f050" } },
+      x: { grid: { display: false } }
+    },
+    plugins: { legend: { display: false } }
+  }
+});
+
+// Lightbox
+function openLightbox(src, cap) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightboxCaption").textContent = cap;
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("open");
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeLightbox();
+});
+</script>
+{% endblock %}

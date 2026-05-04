@@ -1,0 +1,222 @@
+{% extends "base.html" %}
+{% block title %}Analysis – IrriSmart AI{% endblock %}
+{% block page_title %}Model Analysis{% endblock %}
+
+{% block content %}
+
+<div class="tabs" data-aos="fade-up">
+  <button class="tab active" data-tab="classification">
+    <i data-lucide="cpu"></i> Classification
+  </button>
+  <button class="tab" data-tab="regression">
+    <i data-lucide="trending-up"></i> Regression
+  </button>
+  <button class="tab" data-tab="tuning">
+    <i data-lucide="sliders"></i> Tuning
+  </button>
+  <button class="tab" data-tab="clustering">
+    <i data-lucide="layers"></i> Clustering
+  </button>
+</div>
+
+<!-- Classification Tab -->
+<div class="tab-content active" id="tab-classification">
+  <div class="analysis-grid" data-aos="fade-up">
+    <div class="analysis-card full">
+      <h3><i data-lucide="bar-chart-2"></i> Feature Importance – Classification</h3>
+      <img src="{{ url_for('static', filename=state.plots.feat_imp_clf) }}"
+           alt="Feature Importance Classification" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="grid"></i> Confusion Matrix</h3>
+      <img src="{{ url_for('static', filename=state.plots.confusion_matrix) }}"
+           alt="Confusion Matrix" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="info"></i> Metrics at a Glance</h3>
+      <div class="metrics-list">
+        {% for label, val, color in [
+          ("Baseline Accuracy", state.acc_base, "#3B82F6"),
+          ("Tuned Accuracy",    state.acc_tuned, "#8B5CF6"),
+          ("CV Mean Accuracy",  state.cv_mean, "#10B981"),
+          ("CV Std Dev",        state.cv_std, "#F59E0B"),
+        ] %}
+        <div class="metric-row">
+          <span>{{ label }}</span>
+          <span class="metric-pill" style="background:{{ color }}22; color:{{ color }}">
+            {{ val }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Regression Tab -->
+<div class="tab-content" id="tab-regression">
+  <div class="analysis-grid" data-aos="fade-up">
+    <div class="analysis-card full">
+      <h3><i data-lucide="trending-up"></i> Regression Results</h3>
+      <img src="{{ url_for('static', filename=state.plots.regression_results) }}"
+           alt="Regression Results" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="bar-chart-2"></i> Feature Importance – Regression</h3>
+      <img src="{{ url_for('static', filename=state.plots.feat_imp_reg) }}"
+           alt="Feature Importance Regression" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="info"></i> Regression Metrics</h3>
+      <div class="metrics-list">
+        {% for label, val, color in [
+          ("RMSE", state.rmse, "#EF4444"),
+          ("MAE",  state.mae,  "#F59E0B"),
+          ("R²",   state.r2,   "#10B981"),
+        ] %}
+        <div class="metric-row">
+          <span>{{ label }}</span>
+          <span class="metric-pill" style="background:{{ color }}22; color:{{ color }}">
+            {{ val }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tuning Tab -->
+<div class="tab-content" id="tab-tuning">
+  <div class="analysis-grid" data-aos="fade-up">
+    <div class="analysis-card">
+      <h3><i data-lucide="map"></i> GridSearch Heatmap</h3>
+      <img src="{{ url_for('static', filename=state.plots.gridsearch_heatmap) }}"
+           alt="GridSearch Heatmap" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="activity"></i> Overfitting Analysis</h3>
+      <img src="{{ url_for('static', filename=state.plots.overfitting_analysis) }}"
+           alt="Overfitting Analysis" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="settings"></i> Best Parameters</h3>
+      <div class="metrics-list">
+        {% for k, v in state.best_params.items() %}
+        <div class="metric-row">
+          <span>{{ k.replace('_', ' ') }}</span>
+          <span class="metric-pill" style="background:#6366F122; color:#6366F1">{{ v }}</span>
+        </div>
+        {% endfor %}
+        <div class="metric-row">
+          <span>Best CV Score</span>
+          <span class="metric-pill" style="background:#10B98122; color:#10B981">
+            {{ state.best_cv_acc }}
+          </span>
+        </div>
+        <div class="metric-row">
+          <span>Improvement</span>
+          <span class="metric-pill" style="background:#F59E0B22; color:#F59E0B">
+            +{{ "%.4f" % (state.acc_tuned - state.acc_base) }}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Clustering Tab -->
+<div class="tab-content" id="tab-clustering">
+  <div class="analysis-grid" data-aos="fade-up">
+    <div class="analysis-card full">
+      <h3><i data-lucide="scatter-chart"></i> PCA Cluster Visualisation</h3>
+      <img src="{{ url_for('static', filename=state.plots.clustering_pca) }}"
+           alt="Clustering PCA" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="radio"></i> Radar Chart – Cluster Profiles</h3>
+      <img src="{{ url_for('static', filename=state.plots.cluster_radar) }}"
+           alt="Cluster Radar" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="git-branch"></i> Dendrogram</h3>
+      <img src="{{ url_for('static', filename=state.plots.dendrogram) }}"
+           alt="Dendrogram" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="bar-chart"></i> Elbow Method</h3>
+      <img src="{{ url_for('static', filename=state.plots.kmeans_elbow) }}"
+           alt="KMeans Elbow" class="analysis-img"
+           onclick="openLightbox(this.src, this.alt)"/>
+    </div>
+    <div class="analysis-card">
+      <h3><i data-lucide="layers"></i> Clustering Stats</h3>
+      <div class="metrics-list">
+        <div class="metric-row">
+          <span>DBSCAN Clusters</span>
+          <span class="metric-pill" style="background:#3B82F622;color:#3B82F6">
+            {{ state.n_clusters_db }}
+          </span>
+        </div>
+        <div class="metric-row">
+          <span>Noise Points</span>
+          <span class="metric-pill" style="background:#EF444422;color:#EF4444">
+            {{ state.n_noise }}
+          </span>
+        </div>
+        {% for label, cnt in state.cluster_dist.items() %}
+        <div class="metric-row">
+          <span>{{ label }}</span>
+          <span class="metric-pill" style="background:#10B98122;color:#10B981">
+            {{ cnt }}
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-inner" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeLightbox()">
+      <i data-lucide="x"></i>
+    </button>
+    <img id="lightboxImg" src="" alt=""/>
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Tabs
+document.querySelectorAll(".tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab, .tab-content").forEach(el => el.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
+  });
+});
+
+function openLightbox(src, cap) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightboxCaption").textContent = cap;
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("open");
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
+</script>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}Quick Predict – IrriSmart AI{% endblock %}
+{% block page_title %}Quick Predict{% endblock %}
+
+{% block content %}
+<div class="predict-layout">
+
+  <!-- ── Form ─────────────────────────────────────────── -->
+  <div class="predict-form-panel" data-aos="fade-right">
+    <div class="panel-header">
+      <i data-lucide="cpu"></i>
+      <h2>Enter Field Data</h2>
+      <p>Fill in sensor readings and field attributes to get a prediction.</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('predict') }}" id="predictForm">
+
+      <!-- Environmental -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i data-lucide="thermometer"></i> Environmental Sensors
+        </div>
+        <div class="form-grid">
+          {% for name, label, mn, mx, step, ph in [
+            ("Temperature_C",  "Temperature (°C)",  "0",  "60",  "0.1", "28.5"),
+            ("Humidity",       "Humidity (%)",       "0",  "100", "0.1", "65.0"),
+            ("Rainfall_mm",    "Rainfall (mm)",      "0",  "500", "0.1", "12.0"),
+            ("Sunlight_Hours", "Sunlight Hours",     "0",  "24",  "0.1", "8.0"),
+            ("Wind_Speed_kmh", "Wind Speed (km/h)",  "0",  "200", "0.1", "15.0"),
+          ] %}
+          <div class="form-group">
+            <label for="{{ name }}">{{ label }}</label>
+            <input type="number" name="{{ name }}" id="{{ name }}"
+                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
+                   placeholder="{{ ph }}"
+                   value="{{ request.form.get(name, '') }}" required/>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Soil -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i data-lucide="layers"></i> Soil Properties
+        </div>
+        <div class="form-grid">
+          {% for name, label, mn, mx, step, ph in [
+            ("Soil_pH",                 "Soil pH",                "0", "14",  "0.01", "6.5"),
+            ("Soil_Moisture",           "Soil Moisture (%)",      "0", "100", "0.1",  "35.0"),
+            ("Organic_Carbon",          "Organic Carbon (%)",     "0", "100", "0.01", "2.5"),
+            ("Electrical_Conductivity", "Electrical Conductivity","0", "10",  "0.01", "0.8"),
+          ] %}
+          <div class="form-group">
+            <label for="{{ name }}">{{ label }}</label>
+            <input type="number" name="{{ name }}" id="{{ name }}"
+                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
+                   placeholder="{{ ph }}"
+                   value="{{ request.form.get(name, '') }}" required/>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Field Info -->
+      <div class="form-section">
+        <div class="form-section-title">
+          <i data-lucide="map"></i> Field Information
+        </div>
+        <div class="form-grid">
+
+          {% for name, label, mn, mx, step, ph in [
+            ("Field_Area_hectare",     "Field Area (ha)",         "0", "1000","0.01","5.0"),
+            ("Previous_Irrigation_mm", "Prev. Irrigation (mm)",   "0", "500", "0.1", "20.0"),
+          ] %}
+          <div class="form-group">
+            <label for="{{ name }}">{{ label }}</label>
+            <input type="number" name="{{ name }}" id="{{ name }}"
+                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
+                   placeholder="{{ ph }}"
+                   value="{{ request.form.get(name, '') }}" required/>
+          </div>
+          {% endfor %}
+
+          <!-- ✅ FIXED: each col gets its OWN options from its OWN encoder -->
+          {% for col, options in cat_options.items() %}
+          <div class="form-group">
+            <label for="{{ col }}">
+              {{ col.replace('_', ' ') | title }}
+            </label>
+            <select name="{{ col }}" id="{{ col }}" required>
+              <option value="" disabled
+                {% if not request.form.get(col) %}selected{% endif %}>
+                Select…
+              </option>
+              {% for opt in options %}
+              <option value="{{ opt }}"
+                {% if request.form.get(col) == opt %}selected{% endif %}>
+                {{ opt }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endfor %}
+
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary btn-lg">
+          <i data-lucide="zap"></i> Run Prediction
+        </button>
+        <button type="reset" class="btn btn-outline">
+          <i data-lucide="rotate-ccw"></i> Reset
+        </button>
+        <a href="{{ url_for('field_predict') }}" class="btn btn-outline">
+          <i data-lucide="flask-conical"></i> Full Analysis
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Result ─────────────────────────────────────────── -->
+  <div class="predict-result-panel" data-aos="fade-left">
+    {% if result %}
+
+    <div class="result-card animate-in">
+      <div class="result-header">
+        <i data-lucide="check-circle"></i>
+        <h2>Prediction Result</h2>
+      </div>
+
+      <div class="result-main">
+        <div class="result-label">Irrigation Need</div>
+        <div class="result-value need-{{ result.irrigation_need | lower }}">
+          {{ result.irrigation_need }}
+        </div>
+      </div>
+
+      <div class="prob-section">
+        <div class="prob-title">Class Probabilities</div>
+        {% for cls, val, color in [
+          ("Low",    result.proba_low,    "#10B981"),
+          ("Medium", result.proba_medium, "#F59E0B"),
+          ("High",   result.proba_high,   "#EF4444"),
+        ] %}
+        <div class="prob-row">
+          <span class="prob-label">{{ cls }}</span>
+          <div class="prob-bar-outer">
+            <div class="prob-bar-inner cls-{{ cls | lower }}"
+                 style="width:{{ val }}%"></div>
+          </div>
+          <span class="prob-pct">{{ val }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="result-metric">
+        <div class="rm-icon teal"><i data-lucide="droplets"></i></div>
+        <div>
+          <div class="rm-label">Water Required</div>
+          <div class="rm-value">{{ result.water_need_mm }} mm</div>
+        </div>
+      </div>
+
+      <div class="result-advice advice-{{ result.irrigation_need | lower }}">
+        <i data-lucide="lightbulb"></i>
+        {% if result.irrigation_need == "High" %}
+          Immediate irrigation is recommended. Allocate approximately
+          <strong>{{ result.water_need_mm }} mm</strong> of water now.
+        {% elif result.irrigation_need == "Medium" %}
+          Moderate irrigation advised. Consider applying around
+          <strong>{{ result.water_need_mm }} mm</strong> soon.
+        {% else %}
+          Field is well-watered. No immediate irrigation needed.
+          Schedule next check in 3–5 days.
+        {% endif %}
+      </div>
+
+      <div class="result-cta">
+        <a href="{{ url_for('field_predict') }}" class="btn btn-outline"
+           style="width:100%; justify-content:center; margin-top:.75rem">
+          <i data-lucide="flask-conical"></i>
+          Get Full Field Analysis
+        </a>
+      </div>
+    </div>
+
+    {% else %}
+
+    <div class="result-placeholder">
+      <div class="placeholder-icon"><i data-lucide="cpu"></i></div>
+      <h3>Awaiting Input</h3>
+      <p>Fill in the form and click <strong>Run Prediction</strong>
+         to see results here.</p>
+      <div class="placeholder-tips">
+        <div class="tip">
+          <i data-lucide="check"></i> Soil Moisture is the top predictor
+        </div>
+        <div class="tip">
+          <i data-lucide="check"></i> Temperature influences water usage
+        </div>
+        <div class="tip">
+          <i data-lucide="check"></i> Rainfall reduces irrigation demand
+        </div>
+      </div>
+    </div>
+
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

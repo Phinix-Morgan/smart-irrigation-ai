@@ -1,0 +1,678 @@
+{% extends "base.html" %}
+{% block title %}Field Predict – IrriSmart AI{% endblock %}
+{% block page_title %}Field-Level Prediction{% endblock %}
+
+{% block content %}
+
+<!-- ── Page Header ─────────────────────────────────────── -->
+<div class="fp-header" data-aos="fade-up">
+  <div class="fp-header-left">
+    <div class="fp-badge">
+      <i data-lucide="flask-conical"></i> Full Analysis Mode
+    </div>
+    <h1>Field-Level Prediction</h1>
+    <p>Enter all sensor readings and field parameters to receive a comprehensive
+       irrigation analysis — including water need, cluster membership, risk
+       assessment, weekly schedule, and feature contribution breakdown.</p>
+  </div>
+  <div class="fp-header-right">
+    <div class="fp-stat-pill">
+      <i data-lucide="cpu"></i>
+      <span>{{ state.n_features }} Features</span>
+    </div>
+    <div class="fp-stat-pill">
+      <i data-lucide="target"></i>
+      <span>Acc {{ "%.1f"|format(state.acc_tuned * 100) }}%</span>
+    </div>
+    <div class="fp-stat-pill">
+      <i data-lucide="trending-up"></i>
+      <span>R² {{ state.r2 }}</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Layout ──────────────────────────────────────────── -->
+<div class="fp-layout">
+
+  <!-- ═══ LEFT: Form ════════════════════════════════════ -->
+  <div class="fp-form-col" data-aos="fade-right">
+    <form method="POST" action="{{ url_for('field_predict') }}"
+          id="fpForm">
+
+      <!-- Environmental Sensors -->
+      <div class="fp-card">
+        <div class="fp-card-header">
+          <div class="fp-card-icon"
+               style="background:#3B82F611;color:#3B82F6">
+            <i data-lucide="thermometer"></i>
+          </div>
+          <div>
+            <h3>Environmental Sensors</h3>
+            <p>Weather and atmospheric readings</p>
+          </div>
+        </div>
+        <div class="fp-form-grid">
+          {% for name, label, icon, color in [
+            ("Temperature_C",  "Temperature",   "thermometer", "#EF4444"),
+            ("Humidity",       "Humidity",       "droplets",    "#3B82F6"),
+            ("Rainfall_mm",    "Rainfall",       "cloud-rain",  "#6366F1"),
+            ("Sunlight_Hours", "Sunlight Hours", "sun",         "#F59E0B"),
+            ("Wind_Speed_kmh", "Wind Speed",     "wind",        "#10B981"),
+          ] %}
+          {% set r = feature_ranges[name] %}
+          {% set cv = form_data.get(name, r.default) %}
+          <div class="fp-field">
+            <div class="fp-field-header">
+              <label for="{{ name }}">
+                <i data-lucide="{{ icon }}" style="color:{{ color }}"></i>
+                {{ label }}
+              </label>
+              <span class="fp-field-unit">{{ r.unit }}</span>
+            </div>
+            <div class="fp-slider-wrap">
+              <input type="range"
+                     class="fp-slider"
+                     id="{{ name }}_slider"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncInput('{{ name }}', this.value)"/>
+              <input type="number"
+                     class="fp-number"
+                     id="{{ name }}" name="{{ name }}"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncSlider('{{ name }}', this.value)"
+                     required/>
+            </div>
+            <div class="fp-range-labels">
+              <span>{{ r.min }}</span><span>{{ r.max }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Soil Properties -->
+      <div class="fp-card">
+        <div class="fp-card-header">
+          <div class="fp-card-icon"
+               style="background:#10B98111;color:#10B981">
+            <i data-lucide="layers"></i>
+          </div>
+          <div>
+            <h3>Soil Properties</h3>
+            <p>Lab and sensor-based soil measurements</p>
+          </div>
+        </div>
+        <div class="fp-form-grid">
+          {% for name, label, icon, color in [
+            ("Soil_pH",                 "Soil pH",               "flask-conical", "#8B5CF6"),
+            ("Soil_Moisture",           "Soil Moisture",          "droplets",      "#3B82F6"),
+            ("Organic_Carbon",          "Organic Carbon",         "leaf",          "#10B981"),
+            ("Electrical_Conductivity", "Electrical Conductivity","zap",           "#F59E0B"),
+          ] %}
+          {% set r = feature_ranges[name] %}
+          {% set cv = form_data.get(name, r.default) %}
+          <div class="fp-field">
+            <div class="fp-field-header">
+              <label for="{{ name }}">
+                <i data-lucide="{{ icon }}" style="color:{{ color }}"></i>
+                {{ label }}
+              </label>
+              <span class="fp-field-unit">{{ r.unit }}</span>
+            </div>
+            <div class="fp-slider-wrap">
+              <input type="range"
+                     class="fp-slider"
+                     id="{{ name }}_slider"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncInput('{{ name }}', this.value)"/>
+              <input type="number"
+                     class="fp-number"
+                     id="{{ name }}" name="{{ name }}"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncSlider('{{ name }}', this.value)"
+                     required/>
+            </div>
+            <div class="fp-range-labels">
+              <span>{{ r.min }}</span><span>{{ r.max }}</span>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Field Information -->
+      <div class="fp-card">
+        <div class="fp-card-header">
+          <div class="fp-card-icon"
+               style="background:#F59E0B11;color:#F59E0B">
+            <i data-lucide="map"></i>
+          </div>
+          <div>
+            <h3>Field Information</h3>
+            <p>Area, history, and categorical attributes</p>
+          </div>
+        </div>
+        <div class="fp-form-grid">
+
+          <!-- Numeric sliders -->
+          {% for name, label, icon, color in [
+            ("Field_Area_hectare",     "Field Area",          "map",     "#F59E0B"),
+            ("Previous_Irrigation_mm", "Previous Irrigation", "history", "#6366F1"),
+          ] %}
+          {% set r = feature_ranges[name] %}
+          {% set cv = form_data.get(name, r.default) %}
+          <div class="fp-field">
+            <div class="fp-field-header">
+              <label for="{{ name }}">
+                <i data-lucide="{{ icon }}" style="color:{{ color }}"></i>
+                {{ label }}
+              </label>
+              <span class="fp-field-unit">{{ r.unit }}</span>
+            </div>
+            <div class="fp-slider-wrap">
+              <input type="range"
+                     class="fp-slider"
+                     id="{{ name }}_slider"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncInput('{{ name }}', this.value)"/>
+              <input type="number"
+                     class="fp-number"
+                     id="{{ name }}" name="{{ name }}"
+                     min="{{ r.min }}" max="{{ r.max }}" step="{{ r.step }}"
+                     value="{{ cv }}"
+                     oninput="syncSlider('{{ name }}', this.value)"
+                     required/>
+            </div>
+            <div class="fp-range-labels">
+              <span>{{ r.min }}</span><span>{{ r.max }}</span>
+            </div>
+          </div>
+          {% endfor %}
+
+          <!-- ✅ FIXED: each col renders ITS OWN options from ITS OWN encoder -->
+          {% for col, options in cat_options.items() %}
+          <div class="fp-field">
+            <div class="fp-field-header">
+              <label for="fp_{{ col }}">
+                <i data-lucide="list" style="color:#EC4899"></i>
+                {{ col.replace('_', ' ') | title }}
+              </label>
+            </div>
+            <select name="{{ col }}" id="fp_{{ col }}"
+                    class="fp-select" required>
+              <option value="" disabled
+                {% if not form_data.get(col) %}selected{% endif %}>
+                Select {{ col.replace('_',' ') | title }}…
+              </option>
+              {% for opt in options %}
+              <option value="{{ opt }}"
+                {% if form_data.get(col) == opt %}selected{% endif %}>
+                {{ opt }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endfor %}
+
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <div class="fp-submit-row">
+        <button type="submit" class="btn btn-primary btn-lg"
+                id="fpSubmitBtn">
+          <i data-lucide="zap"></i> Analyse Field
+        </button>
+        <button type="button" class="btn btn-outline"
+                onclick="fillDefaults()">
+          <i data-lucide="sliders"></i> Sample Data
+        </button>
+        <button type="reset" class="btn btn-outline"
+                onclick="resetSliders()">
+          <i data-lucide="rotate-ccw"></i> Reset
+        </button>
+      </div>
+
+    </form>
+  </div>
+
+  <!-- ═══ RIGHT: Results ════════════════════════════════ -->
+  <div class="fp-results-col" data-aos="fade-left">
+
+    {% if result %}
+
+    <!-- 1. Main Verdict -->
+    <div class="fp-verdict-card animate-in"
+         style="border-top:4px solid {{ result.risk_color }}">
+      <div class="fp-verdict-top">
+        <div class="fp-verdict-badge"
+             style="background:{{ result.risk_color }}18;
+                    color:{{ result.risk_color }}">
+          <i data-lucide="{{ result.risk_icon }}"></i>
+          {{ result.risk_level }} Risk
+        </div>
+        <div class="fp-confidence">
+          <i data-lucide="target"></i>
+          Confidence: <strong>{{ result.confidence }}%</strong>
+        </div>
+      </div>
+
+      <div class="fp-verdict-main">
+        <div class="fp-verdict-label">Irrigation Decision</div>
+        <div class="fp-verdict-value need-{{ result.irrigation_need | lower }}">
+          {% if result.needs_water %}💧 Irrigation Needed
+          {% else %}✅ No Irrigation Needed{% endif %}
+        </div>
+        <div class="fp-verdict-sub">
+          Classified as <strong>{{ result.irrigation_need }}</strong> Need
+        </div>
+      </div>
+
+      <div class="fp-prob-section">
+        <div class="fp-prob-title">Class Probabilities</div>
+        {% for cls, val, color in [
+          ("Low",    result.proba_low,    "#10B981"),
+          ("Medium", result.proba_medium, "#F59E0B"),
+          ("High",   result.proba_high,   "#EF4444"),
+        ] %}
+        <div class="fp-prob-row">
+          <span class="fp-prob-label">{{ cls }}</span>
+          <div class="fp-prob-track">
+            <div class="fp-prob-fill"
+                 style="width:{{ val }}%; background:{{ color }}"></div>
+          </div>
+          <span class="fp-prob-pct" style="color:{{ color }}">
+            {{ val }}%
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 2. Key Metrics -->
+    <div class="fp-metrics-row">
+      <div class="fp-mini-card">
+        <div class="fp-mini-icon"
+             style="background:#3B82F618;color:#3B82F6">
+          <i data-lucide="droplets"></i>
+        </div>
+        <div class="fp-mini-value">{{ result.water_need_mm }} mm</div>
+        <div class="fp-mini-label">Water Required</div>
+      </div>
+      <div class="fp-mini-card">
+        <div class="fp-mini-icon"
+             style="background:{{ result.cluster_color }}18;
+                    color:{{ result.cluster_color }}">
+          <i data-lucide="{{ result.cluster_icon }}"></i>
+        </div>
+        <div class="fp-mini-value">Cluster {{ result.cluster_id }}</div>
+        <div class="fp-mini-label">Field Group</div>
+      </div>
+      <div class="fp-mini-card">
+        <div class="fp-mini-icon"
+             style="background:#10B98118;color:#10B981">
+          <i data-lucide="ruler"></i>
+        </div>
+        <div class="fp-mini-value">
+          {{ result.total_water_litres | int }} L
+        </div>
+        <div class="fp-mini-label">Total Volume</div>
+      </div>
+      <div class="fp-mini-card">
+        <div class="fp-mini-icon"
+             style="background:#F59E0B18;color:#F59E0B">
+          <i data-lucide="indian-rupee"></i>
+        </div>
+        <div class="fp-mini-value">₹{{ result.cost_estimate }}</div>
+        <div class="fp-mini-label">Est. Water Cost</div>
+      </div>
+    </div>
+
+    <!-- 3. Cluster Card -->
+    <div class="fp-cluster-card"
+         style="border-left:4px solid {{ result.cluster_color }}">
+      <div class="fp-cluster-header">
+        <div class="fp-cluster-icon"
+             style="background:{{ result.cluster_color }}18;
+                    color:{{ result.cluster_color }}">
+          <i data-lucide="{{ result.cluster_icon }}"></i>
+        </div>
+        <div>
+          <div class="fp-cluster-label">Field Cluster</div>
+          <div class="fp-cluster-name">{{ result.cluster_label }}</div>
+        </div>
+        <div class="fp-cluster-id"
+             style="background:{{ result.cluster_color }}18;
+                    color:{{ result.cluster_color }}">
+          #{{ result.cluster_id }}
+        </div>
+      </div>
+      <p class="fp-cluster-desc">{{ result.cluster_description }}</p>
+    </div>
+
+    <!-- 4. Recommendation -->
+    <div class="fp-rec-card need-bg-{{ result.irrigation_need | lower }}">
+      <div class="fp-rec-header">
+        <i data-lucide="lightbulb"></i>
+        <strong>AI Recommendation</strong>
+      </div>
+      <p>{{ result.recommendation }}</p>
+    </div>
+
+    <!-- 5. Weekly Schedule -->
+    <div class="fp-schedule-card">
+      <div class="fp-schedule-header">
+        <i data-lucide="calendar"></i>
+        <h3>7-Day Irrigation Schedule</h3>
+        <span class="fp-schedule-total">
+          Total: {{ result.water_need_mm }} mm
+        </span>
+      </div>
+      <div class="fp-schedule-grid">
+        {% set max_amt = result.schedule | map(attribute='amount_mm') | max %}
+        {% for s in result.schedule %}
+        <div class="fp-day-card {% if s.recommended %}active{% endif %}">
+          <div class="fp-day-name">{{ s.day }}</div>
+          <div class="fp-day-bar-wrap">
+            <div class="fp-day-bar"
+                 style="height:{% if max_amt > 0 %}
+                   {{ [((s.amount_mm / max_amt) * 56)|int, 4]|max }}
+                 {% else %}4{% endif %}px;
+                 background:{% if s.recommended %}#3B82F6{% else %}
+                   var(--border){% endif %}">
+            </div>
+          </div>
+          <div class="fp-day-amt">
+            {% if s.recommended %}{{ s.amount_mm }}{% else %}—{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <canvas id="scheduleChart" height="110"
+              style="margin-top:1rem"></canvas>
+    </div>
+
+    <!-- 6. Feature Contributions -->
+    <div class="fp-contrib-card">
+      <div class="fp-contrib-header">
+        <i data-lucide="bar-chart-2"></i>
+        <h3>Top Feature Contributions</h3>
+        <span class="fp-contrib-sub">From trained model</span>
+      </div>
+      <div class="fp-contrib-list">
+        {% set max_imp = result.top_features | map(attribute='importance') | max %}
+        {% for f in result.top_features %}
+        <div class="fp-contrib-row">
+          <div class="fp-contrib-name">{{ f.feature }}</div>
+          <div class="fp-contrib-bar-wrap">
+            <div class="fp-contrib-bar"
+                 style="width:{% if max_imp > 0 %}
+                   {{ ((f.importance / max_imp) * 100)|int }}
+                 {% else %}0{% endif %}%;
+                 background:linear-gradient(90deg,#3B82F6,#8B5CF6)">
+            </div>
+          </div>
+          <div class="fp-contrib-stats">
+            <span class="fp-contrib-imp">{{ f.importance }}%</span>
+            <span class="fp-contrib-val">{{ f.value }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <canvas id="contribChart" height="200"
+              style="margin-top:1.25rem"></canvas>
+    </div>
+
+    <!-- 7. Full Summary Table -->
+    <div class="fp-summary-card">
+      <div class="fp-summary-header">
+        <i data-lucide="clipboard-list"></i>
+        <h3>Complete Analysis Summary</h3>
+      </div>
+      <div class="fp-summary-table">
+        {% for label, value, color in [
+          ("Irrigation Need",      result.irrigation_need,
+           "#3B82F6"),
+          ("Needs Water",
+           "Yes" if result.needs_water else "No",
+           "#EF4444" if result.needs_water else "#10B981"),
+          ("Water Required",
+           result.water_need_mm | string + " mm",    "#3B82F6"),
+          ("Total Volume",
+           result.total_water_litres | string + " L","#8B5CF6"),
+          ("Field Area",
+           result.field_area | string + " ha",       "#10B981"),
+          ("Estimated Cost",
+           "₹" + result.cost_estimate | string,      "#F59E0B"),
+          ("Cluster ID",
+           result.cluster_id | string,               "#6366F1"),
+          ("Cluster Label",
+           result.cluster_label,                     "#F97316"),
+          ("Risk Level",
+           result.risk_level,                        result.risk_color),
+          ("Model Confidence",
+           result.confidence | string + "%",         "#10B981"),
+          ("Probability – Low",
+           result.proba_low | string + "%",          "#10B981"),
+          ("Probability – Medium",
+           result.proba_medium | string + "%",       "#F59E0B"),
+          ("Probability – High",
+           result.proba_high | string + "%",         "#EF4444"),
+        ] %}
+        <div class="fp-summary-row">
+          <span class="fp-summary-label">{{ label }}</span>
+          <span class="fp-summary-value"
+                style="color:{{ color }}">{{ value }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% else %}
+
+    <!-- Placeholder -->
+    <div class="fp-placeholder">
+      <div class="fp-placeholder-icon">
+        <i data-lucide="flask-conical"></i>
+      </div>
+      <h3>Complete Field Analysis</h3>
+      <p>Fill in all field parameters on the left and click
+         <strong>Analyse Field</strong> to receive:</p>
+      <div class="fp-placeholder-list">
+        {% for icon, text in [
+          ("droplets",      "Irrigation decision — needs water or not"),
+          ("layers",        "Field cluster membership & profile"),
+          ("trending-up",   "Exact water requirement in mm"),
+          ("calendar",      "7-day irrigation schedule"),
+          ("bar-chart-2",   "Top feature contribution breakdown"),
+          ("lightbulb",     "AI-powered smart recommendation"),
+          ("indian-rupee",  "Estimated water cost"),
+          ("target",        "Confidence score & risk level"),
+        ] %}
+        <div class="fp-placeholder-item">
+          <i data-lucide="{{ icon }}"></i>
+          <span>{{ text }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      <button class="btn btn-outline"
+              style="margin-top:1.25rem; width:100%;
+                     justify-content:center"
+              onclick="fillDefaults()">
+        <i data-lucide="sliders"></i> Try with Sample Data
+      </button>
+    </div>
+
+    {% endif %}
+  </div>
+</div>
+
+<!-- Lightbox (for charts if needed) -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="lightbox-inner" onclick="event.stopPropagation()">
+    <button class="lightbox-close" onclick="closeLightbox()">
+      <i data-lucide="x"></i>
+    </button>
+    <img id="lightboxImg" src="" alt=""/>
+    <div class="lightbox-caption" id="lightboxCaption"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Slider ↔ Number sync ─────────────────────────────────
+function syncInput(name, val) {
+  const inp = document.getElementById(name);
+  if (inp) inp.value = val;
+}
+function syncSlider(name, val) {
+  const sl = document.getElementById(name + "_slider");
+  if (sl) sl.value = val;
+}
+
+// ── Reset all sliders ────────────────────────────────────
+function resetSliders() {
+  document.querySelectorAll(".fp-slider").forEach(sl => {
+    const name = sl.id.replace("_slider", "");
+    const inp  = document.getElementById(name);
+    if (inp) {
+      sl.value  = inp.defaultValue;
+      inp.value = inp.defaultValue;
+    }
+  });
+}
+
+// ── Fill sample defaults ─────────────────────────────────
+const sampleDefaults = {
+  Temperature_C           : 32.5,
+  Humidity                : 45.0,
+  Rainfall_mm             : 5.0,
+  Sunlight_Hours          : 10.0,
+  Wind_Speed_kmh          : 18.0,
+  Soil_pH                 : 6.2,
+  Soil_Moisture           : 22.0,
+  Organic_Carbon          : 1.8,
+  Electrical_Conductivity : 0.65,
+  Field_Area_hectare      : 8.5,
+  Previous_Irrigation_mm  : 12.0,
+};
+function fillDefaults() {
+  Object.entries(sampleDefaults).forEach(([name, val]) => {
+    const inp = document.getElementById(name);
+    const sl  = document.getElementById(name + "_slider");
+    if (inp) inp.value = val;
+    if (sl)  sl.value  = val;
+  });
+  // Pick first real option for every select
+  document.querySelectorAll(".fp-select").forEach(sel => {
+    if (sel.options.length > 1) sel.selectedIndex = 1;
+  });
+}
+
+// ── Submit loader ────────────────────────────────────────
+document.getElementById("fpForm").addEventListener("submit", () => {
+  const btn = document.getElementById("fpSubmitBtn");
+  btn.disabled = true;
+  btn.innerHTML =
+    '<i data-lucide="loader-2" class="spin"></i> Analysing…';
+  lucide.createIcons();
+});
+
+// ── Charts (only when results exist) ────────────────────
+{% if result %}
+
+// Schedule bar chart
+const schedCtx = document.getElementById("scheduleChart");
+if (schedCtx) {
+  const sd = {{ result.schedule | tojson }};
+  new Chart(schedCtx, {
+    type: "bar",
+    data: {
+      labels: sd.map(d => d.day),
+      datasets: [{
+        label          : "Water (mm)",
+        data           : sd.map(d => d.amount_mm),
+        backgroundColor: sd.map(d => d.recommended ? "#3B82F6" : "#E2E8F080"),
+        borderRadius   : 6,
+        borderSkipped  : false,
+      }]
+    },
+    options: {
+      plugins: {
+        legend : { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw} mm` } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          grid: { color: "#f0f0f040" },
+          ticks: { callback: v => v + " mm" }
+        }
+      }
+    }
+  });
+}
+
+// Feature contribution horizontal bar chart
+const contribCtx = document.getElementById("contribChart");
+if (contribCtx) {
+  const fd = {{ result.top_features | tojson }};
+  const palette = [
+    "#3B82F6","#8B5CF6","#10B981","#F59E0B",
+    "#EF4444","#6366F1","#F97316","#EC4899"
+  ];
+  new Chart(contribCtx, {
+    type: "bar",
+    data: {
+      labels: fd.map(f => f.feature),
+      datasets: [{
+        label          : "Importance %",
+        data           : fd.map(f => f.importance),
+        backgroundColor: fd.map((_, i) => palette[i % palette.length]),
+        borderRadius   : 6,
+        borderSkipped  : false,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      plugins: {
+        legend : { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.raw}%` } }
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          grid: { color: "#f0f0f040" },
+          ticks: { callback: v => v + "%" }
+        },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+{% endif %}
+
+// Lightbox
+function openLightbox(src, cap) {
+  document.getElementById("lightboxImg").src = src;
+  document.getElementById("lightboxCaption").textContent = cap;
+  document.getElementById("lightbox").classList.add("open");
+}
+function closeLightbox() {
+  document.getElementById("lightbox").classList.remove("open");
+}
+document.addEventListener("keydown",
+  e => { if (e.key === "Escape") closeLightbox(); });
+
+lucide.createIcons();
+</script>
+{% endblock %}

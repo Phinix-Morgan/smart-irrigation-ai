@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Smart Irrigation AI{% endblock %}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet"/>
+  <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"/>
+</head>
+<body>
+
+{% set _state = get_state() %}
+
+<!-- ── Sidebar ─────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">
+      <i data-lucide="droplets"></i>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">IrriSmart</span>
+      <span class="brand-sub">AI Platform</span>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+
+    <div class="nav-section-label">Main</div>
+
+    <a href="{{ url_for('index') }}"
+       class="nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+      <i data-lucide="home"></i><span>Home</span>
+    </a>
+
+    <a href="{{ url_for('dashboard') }}"
+       class="nav-item {% if request.endpoint == 'dashboard' %}active{% endif %}">
+      <i data-lucide="layout-dashboard"></i><span>Dashboard</span>
+    </a>
+
+    <div class="nav-section-label">Predictions</div>
+
+    <a href="{{ url_for('field_predict') }}"
+       class="nav-item {% if request.endpoint == 'field_predict' %}active{% endif %}">
+      <i data-lucide="flask-conical"></i>
+      <span>Field Predict</span>
+      <span class="nav-badge">New</span>
+    </a>
+
+    <a href="{{ url_for('predict') }}"
+       class="nav-item {% if request.endpoint == 'predict' %}active{% endif %}">
+      <i data-lucide="cpu"></i><span>Quick Predict</span>
+    </a>
+
+    <div class="nav-section-label">Insights</div>
+
+    <a href="{{ url_for('analysis') }}"
+       class="nav-item {% if request.endpoint == 'analysis' %}active{% endif %}">
+      <i data-lucide="bar-chart-3"></i><span>Analysis</span>
+    </a>
+
+    <a href="{{ url_for('about') }}"
+       class="nav-item {% if request.endpoint == 'about' %}active{% endif %}">
+      <i data-lucide="info"></i><span>About</span>
+    </a>
+
+  </nav>
+
+  <div class="sidebar-footer">
+    <div class="status-badge">
+      <span class="status-dot {% if _state.get('trained') %}active{% endif %}"></span>
+      <span>Model {% if _state.get('trained') %}Ready{% else %}Not Trained{% endif %}</span>
+    </div>
+  </div>
+</aside>
+
+<!-- ── Topbar ──────────────────────────────────────────── -->
+<div class="topbar" id="topbar">
+  <button class="sidebar-toggle" id="sidebarToggle">
+    <i data-lucide="menu"></i>
+  </button>
+  <div class="topbar-title">{% block page_title %}Smart Irrigation AI{% endblock %}</div>
+  <div class="topbar-actions">
+    <div class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <i data-lucide="sun"></i>
+    </div>
+  </div>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────── -->
+<main class="main-content" id="mainContent">
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for cat, msg in messages %}
+          <div class="flash flash-{{ cat }}">
+            <i data-lucide="{% if cat == 'success' %}check-circle
+                             {% elif cat == 'error' %}x-circle
+                             {% else %}info{% endif %}"></i>
+            <span>{{ msg }}</span>
+            <button class="flash-close" onclick="this.parentElement.remove()">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+  AOS.init({ duration: 600, once: true, offset: 50 });
+  lucide.createIcons();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
