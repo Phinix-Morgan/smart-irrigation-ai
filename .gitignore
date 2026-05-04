@@ -17,7 +17,7 @@ venv/
 .idea/
 
 # Models
-*.pkl
+# *.pkl
 *.joblib
 
 # Logs
