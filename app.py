@@ -1,26 +1,26 @@
+"""
+app.py
+─────────────────────────────────────────────────────────────────────────────
+IrriSmart AI — Flask application.
+Models are pre-trained locally and loaded from ml/saved_model/ at startup.
+No CSV upload or live training on the server.
+"""
+
 import os
 import numpy as np
 import pandas as pd
-from flask import (Flask, render_template, request,
-                   redirect, url_for, flash, jsonify)
-from werkzeug.utils import secure_filename
-from ml.model import train_pipeline, get_state, predict_single
+from flask import (
+    Flask, render_template, request,
+    redirect, url_for, flash, jsonify,
+)
+from ml.model import get_state, predict_single
 
+# ── App setup ──────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = "smart_irrigation_2024_secret"
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-ALLOWED_EXTS  = {"csv"}
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-app.config["UPLOAD_FOLDER"]      = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 
-
-def allowed_file(filename):
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTS
-
-
-# ── Template filter ───────────────────────────────────────
+# ── Template filter ────────────────────────────────────────────────────────
 @app.template_filter("sum_values")
 def sum_values_filter(d):
     try:
@@ -29,15 +29,15 @@ def sum_values_filter(d):
         return 0
 
 
-# ── Context processor ─────────────────────────────────────
+# ── Context processor ──────────────────────────────────────────────────────
 @app.context_processor
 def inject_globals():
     return dict(get_state=get_state)
 
 
-# ─────────────────────────────────────────────────────────
-# ROUTES
-# ─────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════
+#  ROUTES
+# ══════════════════════════════════════════════════════════════════════════
 
 @app.route("/")
 def index():
@@ -45,15 +45,17 @@ def index():
     trained = state.get("trained", False)
 
     if trained:
-        tc             = state["target_counts"]
-        dominant_need  = max(tc, key=tc.get)
-        avg_water      = round(state["rmse"] + state["mae"], 1)
-        cd             = state["cluster_dist"]
+        tc               = state["target_counts"]
+        dominant_need    = max(tc, key=tc.get)
+        avg_water        = round(state["rmse"] + state["mae"], 1)
+        cd               = state["cluster_dist"]
         dominant_cluster = max(cd, key=cd.get) if cd else "Dry Zone"
-        total          = sum(tc.values()) or 1
-        need_fill      = round(tc.get(dominant_need, 0) / total * 100)
-        water_fill     = min(round((avg_water / 60) * 100), 100)
-        clust_fill     = round(max(cd.values()) / sum(cd.values()) * 100) if cd else 45
+        total            = sum(tc.values()) or 1
+        need_fill        = round(tc.get(dominant_need, 0) / total * 100)
+        water_fill       = min(round((avg_water / 60) * 100), 100)
+        clust_fill       = round(
+            max(cd.values()) / sum(cd.values()) * 100
+        ) if cd else 45
     else:
         dominant_need    = "—"
         avg_water        = "—"
@@ -63,55 +65,36 @@ def index():
         clust_fill       = 0
 
     hero_stats = {
-        "total_records"  : f"{state['n_rows']:,}"      if trained else "—",
-        "total_models"   : "3",
-        "total_features" : str(state["n_features"])    if trained else "—",
-        "acc_tuned"      : f"{state['acc_tuned']:.1%}" if trained else "—",
-        "r2"             : str(state["r2"])             if trained else "—",
-        "n_clusters"     : "3",
+        "total_records" : f"{state['n_rows']:,}" if trained else "10,000+",
+        "total_models"  : "3",
+        "total_features": str(state["n_features"]) if trained else "15",
+        "acc_tuned"     : f"{state['acc_tuned']:.1%}" if trained else "—",
+        "r2"            : str(state["r2"]) if trained else "—",
+        "n_clusters"    : "3",
     }
 
     hero_visuals = {
-        "irrigation_need" : dominant_need,
-        "need_fill"       : need_fill,
-        "water_needed"    : f"{avg_water} mm" if trained else "—",
-        "water_fill"      : water_fill,
-        "field_cluster"   : dominant_cluster,
-        "clust_fill"      : clust_fill,
+        "irrigation_need": dominant_need,
+        "need_fill"      : need_fill,
+        "water_needed"   : f"{avg_water} mm" if trained else "—",
+        "water_fill"     : water_fill,
+        "field_cluster"  : dominant_cluster,
+        "clust_fill"     : clust_fill,
     }
 
-    return render_template("index.html",
-                           trained=trained,
-                           hero_stats=hero_stats,
-                           hero_visuals=hero_visuals)
-
-
-@app.route("/upload", methods=["POST"])
-def upload():
-    if "file" not in request.files:
-        flash("No file selected.", "error")
-        return redirect(url_for("index"))
-    f = request.files["file"]
-    if f.filename == "" or not allowed_file(f.filename):
-        flash("Please upload a valid .csv file.", "error")
-        return redirect(url_for("index"))
-    filename = secure_filename(f.filename)
-    filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-    f.save(filepath)
-    try:
-        train_pipeline(filepath)
-        flash("✅ Model trained successfully!", "success")
-    except Exception as e:
-        flash(f"❌ Training failed: {str(e)}", "error")
-        return redirect(url_for("index"))
-    return redirect(url_for("dashboard"))
+    return render_template(
+        "index.html",
+        trained      = trained,
+        hero_stats   = hero_stats,
+        hero_visuals = hero_visuals,
+    )
 
 
 @app.route("/dashboard")
 def dashboard():
     state = get_state()
     if not state.get("trained"):
-        flash("Please upload and train the model first.", "warning")
+        flash("Model is not loaded. Please check the server configuration.", "warning")
         return redirect(url_for("index"))
     return render_template("dashboard.html", state=state)
 
@@ -120,64 +103,71 @@ def dashboard():
 def predict():
     state = get_state()
     if not state.get("trained"):
-        flash("Please upload and train the model first.", "warning")
+        flash("Model is not loaded. Please check the server configuration.", "warning")
         return redirect(url_for("index"))
+
     result = None
     if request.method == "POST":
         result = predict_single(request.form.to_dict())
-    cat_options = {}
-    for col, enc in state.get("encoders", {}).items():
-        cat_options[col] = list(enc.classes_)
-    return render_template("predict.html",
-                           state=state,
-                           result=result,
-                           cat_options=cat_options)
+
+    cat_options = {
+        col: list(enc.classes_)
+        for col, enc in state.get("encoders", {}).items()
+    }
+
+    return render_template(
+        "predict.html",
+        state       = state,
+        result      = result,
+        cat_options = cat_options,
+    )
 
 
 @app.route("/field-predict", methods=["GET", "POST"])
 def field_predict():
     state = get_state()
     if not state.get("trained"):
-        flash("Please upload and train the model first.", "warning")
+        flash("Model is not loaded. Please check the server configuration.", "warning")
         return redirect(url_for("index"))
 
     result = None
     if request.method == "POST":
-        result = full_field_prediction(request.form.to_dict())
+        result = _full_field_prediction(request.form.to_dict())
 
-    # Build per-column dropdown options from their OWN encoder
-    cat_options = {}
-    for col, enc in state.get("encoders", {}).items():
-        cat_options[col] = list(enc.classes_)
-
-    feature_ranges = {
-        "Soil_pH"                : {"min": 4.0,  "max": 9.0,   "step": 0.01, "default": 6.5,  "unit": "pH"},
-        "Soil_Moisture"          : {"min": 0.0,  "max": 100.0, "step": 0.1,  "default": 35.0, "unit": "%"},
-        "Organic_Carbon"         : {"min": 0.0,  "max": 10.0,  "step": 0.01, "default": 2.5,  "unit": "%"},
-        "Electrical_Conductivity": {"min": 0.0,  "max": 5.0,   "step": 0.01, "default": 0.8,  "unit": "dS/m"},
-        "Temperature_C"          : {"min": 0.0,  "max": 55.0,  "step": 0.1,  "default": 28.0, "unit": "°C"},
-        "Humidity"               : {"min": 0.0,  "max": 100.0, "step": 0.1,  "default": 60.0, "unit": "%"},
-        "Rainfall_mm"            : {"min": 0.0,  "max": 300.0, "step": 0.1,  "default": 10.0, "unit": "mm"},
-        "Sunlight_Hours"         : {"min": 0.0,  "max": 16.0,  "step": 0.1,  "default": 8.0,  "unit": "hrs"},
-        "Wind_Speed_kmh"         : {"min": 0.0,  "max": 120.0, "step": 0.1,  "default": 15.0, "unit": "km/h"},
-        "Field_Area_hectare"     : {"min": 0.1,  "max": 500.0, "step": 0.1,  "default": 5.0,  "unit": "ha"},
-        "Previous_Irrigation_mm" : {"min": 0.0,  "max": 200.0, "step": 0.1,  "default": 20.0, "unit": "mm"},
+    cat_options = {
+        col: list(enc.classes_)
+        for col, enc in state.get("encoders", {}).items()
     }
 
-    return render_template("field_predict.html",
-                           state=state,
-                           result=result,
-                           cat_options=cat_options,
-                           feature_ranges=feature_ranges,
-                           form_data=request.form.to_dict()
-                                     if request.method == "POST" else {})
+    feature_ranges = {
+        "Soil_pH"                 : {"min": 4.0,  "max": 9.0,   "step": 0.01, "default": 6.5,  "unit": "pH"},
+        "Soil_Moisture"           : {"min": 0.0,  "max": 100.0, "step": 0.1,  "default": 35.0, "unit": "%"},
+        "Organic_Carbon"          : {"min": 0.0,  "max": 10.0,  "step": 0.01, "default": 2.5,  "unit": "%"},
+        "Electrical_Conductivity" : {"min": 0.0,  "max": 5.0,   "step": 0.01, "default": 0.8,  "unit": "dS/m"},
+        "Temperature_C"           : {"min": 0.0,  "max": 55.0,  "step": 0.1,  "default": 28.0, "unit": "°C"},
+        "Humidity"                : {"min": 0.0,  "max": 100.0, "step": 0.1,  "default": 60.0, "unit": "%"},
+        "Rainfall_mm"             : {"min": 0.0,  "max": 300.0, "step": 0.1,  "default": 10.0, "unit": "mm"},
+        "Sunlight_Hours"          : {"min": 0.0,  "max": 16.0,  "step": 0.1,  "default": 8.0,  "unit": "hrs"},
+        "Wind_Speed_kmh"          : {"min": 0.0,  "max": 120.0, "step": 0.1,  "default": 15.0, "unit": "km/h"},
+        "Field_Area_hectare"      : {"min": 0.1,  "max": 500.0, "step": 0.1,  "default": 5.0,  "unit": "ha"},
+        "Previous_Irrigation_mm"  : {"min": 0.0,  "max": 200.0, "step": 0.1,  "default": 20.0, "unit": "mm"},
+    }
+
+    return render_template(
+        "field_predict.html",
+        state          = state,
+        result         = result,
+        cat_options    = cat_options,
+        feature_ranges = feature_ranges,
+        form_data      = request.form.to_dict() if request.method == "POST" else {},
+    )
 
 
 @app.route("/analysis")
 def analysis():
     state = get_state()
     if not state.get("trained"):
-        flash("Please upload and train the model first.", "warning")
+        flash("Model is not loaded. Please check the server configuration.", "warning")
         return redirect(url_for("index"))
     return render_template("analysis.html", state=state)
 
@@ -186,55 +176,61 @@ def analysis():
 def about():
     state   = get_state()
     trained = state.get("trained", False)
+
     about_stats = {
-        "total_records"  : f"{state['n_rows']:,}"       if trained else "10,000+",
-        "total_cols"     : str(state["n_cols"])          if trained else "20",
-        "total_features" : str(state["n_features"])      if trained else "—",
-        "acc_tuned"      : f"{state['acc_tuned']:.4f}"   if trained else "—",
-        "r2"             : f"{state['r2']:.4f}"          if trained else "—",
-        "rmse"           : f"{state['rmse']:.4f}"        if trained else "—",
-        "n_clusters_db"  : str(state["n_clusters_db"])   if trained else "—",
-        "best_cv_acc"    : f"{state['best_cv_acc']:.4f}" if trained else "—",
+        "total_records" : f"{state['n_rows']:,}" if trained else "10,000+",
+        "total_cols"    : str(state["n_cols"])        if trained else "20",
+        "total_features": str(state["n_features"])    if trained else "—",
+        "acc_tuned"     : f"{state['acc_tuned']:.4f}" if trained else "—",
+        "r2"            : f"{state['r2']:.4f}"         if trained else "—",
+        "rmse"          : f"{state['rmse']:.4f}"       if trained else "—",
+        "n_clusters_db" : str(state["n_clusters_db"]) if trained else "—",
+        "best_cv_acc"   : f"{state['best_cv_acc']:.4f}" if trained else "—",
     }
-    return render_template("about.html",
-                           state=state,
-                           trained=trained,
-                           about_stats=about_stats)
+
+    return render_template(
+        "about.html",
+        state       = state,
+        trained     = trained,
+        about_stats = about_stats,
+    )
 
 
 @app.route("/api/metrics")
 def api_metrics():
     state = get_state()
     if not state.get("trained"):
-        return jsonify({"error": "Not trained"}), 400
+        return jsonify({"error": "Model not loaded"}), 503
+
     return jsonify({
-        "acc_base"      : state["acc_base"],
-        "acc_tuned"     : state["acc_tuned"],
-        "cv_mean"       : state["cv_mean"],
-        "cv_std"        : state["cv_std"],
-        "rmse"          : state["rmse"],
-        "mae"           : state["mae"],
-        "r2"            : state["r2"],
-        "cv_scores"     : state["cv_scores"],
-        "target_counts" : state["target_counts"],
-        "cluster_dist"  : state["cluster_dist"],
-        "n_rows"        : state["n_rows"],
-        "n_cols"        : state["n_cols"],
-        "n_features"    : state["n_features"],
-        "n_clusters_db" : state["n_clusters_db"],
-        "n_noise"       : state["n_noise"],
-        "best_params"   : state["best_params"],
-        "best_cv_acc"   : state["best_cv_acc"],
+        "acc_base"     : state["acc_base"],
+        "acc_tuned"    : state["acc_tuned"],
+        "cv_mean"      : state["cv_mean"],
+        "cv_std"       : state["cv_std"],
+        "rmse"         : state["rmse"],
+        "mae"          : state["mae"],
+        "r2"           : state["r2"],
+        "cv_scores"    : state["cv_scores"],
+        "target_counts": state["target_counts"],
+        "cluster_dist" : state["cluster_dist"],
+        "n_rows"       : state["n_rows"],
+        "n_cols"       : state["n_cols"],
+        "n_features"   : state["n_features"],
+        "n_clusters_db": state["n_clusters_db"],
+        "n_noise"      : state["n_noise"],
+        "best_params"  : state["best_params"],
+        "best_cv_acc"  : state["best_cv_acc"],
     })
 
 
-# ─────────────────────────────────────────────────────────
-# FULL FIELD PREDICTION LOGIC
-# ─────────────────────────────────────────────────────────
-def full_field_prediction(form_data: dict) -> dict:
+# ══════════════════════════════════════════════════════════════════════════
+#  FULL FIELD PREDICTION LOGIC
+# ══════════════════════════════════════════════════════════════════════════
+
+def _full_field_prediction(form_data: dict) -> dict:
     state = get_state()
     if not state.get("trained"):
-        return {"error": "Model not trained."}
+        return {"error": "Model not loaded."}
 
     clf            = state["clf"]
     reg            = state["reg"]
@@ -245,7 +241,7 @@ def full_field_prediction(form_data: dict) -> dict:
     target_map_inv = state["target_map_inv"]
     scaler         = state["scaler"]
 
-    # ── Build feature row ──────────────────────────────────
+    # Build feature row ──────────────────────────────────────────────────────
     row = {}
     for feat in NUMERIC_FEATS:
         try:
@@ -265,20 +261,20 @@ def full_field_prediction(form_data: dict) -> dict:
 
     X = pd.DataFrame([row])[ALL_FEATURES]
 
-    # ── Classification ─────────────────────────────────────
-    clf_pred    = int(clf.predict(X)[0])
-    clf_proba   = clf.predict_proba(X)[0].tolist()
-    irr_need    = target_map_inv[clf_pred]
+    # Classification ─────────────────────────────────────────────────────────
+    clf_pred   = int(clf.predict(X)[0])
+    clf_proba  = clf.predict_proba(X)[0].tolist()
+    irr_need   = target_map_inv[clf_pred]
     needs_water = irr_need in ["Medium", "High"]
 
-    # ── Regression ─────────────────────────────────────────
+    # Regression ─────────────────────────────────────────────────────────────
     water_mm = float(reg.predict(X)[0])
 
-    # ── Clustering ─────────────────────────────────────────
+    # Clustering ─────────────────────────────────────────────────────────────
     CLUSTER_FEATS = [
         "Soil_Moisture", "Temperature_C", "Humidity",
         "Rainfall_mm", "Soil_pH", "Previous_Irrigation_mm",
-        "Field_Area_hectare", "Wind_Speed_kmh"
+        "Field_Area_hectare", "Wind_Speed_kmh",
     ]
     cluster_row    = np.array([[row.get(f, 0.0) for f in CLUSTER_FEATS]])
     cluster_scaled = scaler.transform(cluster_row)
@@ -288,31 +284,37 @@ def full_field_prediction(form_data: dict) -> dict:
     cluster_meta = {
         0: {
             "label"      : "💧 High Water Demand",
-            "description": ("Fields in this cluster have high soil temperature, "
-                            "low moisture, and minimal rainfall. "
-                            "Frequent and substantial irrigation is essential."),
-            "color" : "#EF4444",
-            "icon"  : "droplets",
+            "description": (
+                "Fields in this cluster have high soil temperature, "
+                "low moisture, and minimal rainfall. "
+                "Frequent and substantial irrigation is essential."
+            ),
+            "color": "#EF4444",
+            "icon" : "droplets",
         },
         1: {
             "label"      : "🌧 Rain-Fed Zone",
-            "description": ("Fields in this cluster receive adequate natural rainfall. "
-                            "Supplemental irrigation may only be needed during dry spells."),
-            "color" : "#3B82F6",
-            "icon"  : "cloud-rain",
+            "description": (
+                "Fields in this cluster receive adequate natural rainfall. "
+                "Supplemental irrigation may only be needed during dry spells."
+            ),
+            "color": "#3B82F6",
+            "icon" : "cloud-rain",
         },
         2: {
             "label"      : "☀️ Dry Zone",
-            "description": ("Fields in this cluster are in arid conditions with "
-                            "very low humidity and rainfall. "
-                            "Careful irrigation scheduling is strongly recommended."),
-            "color" : "#F59E0B",
-            "icon"  : "sun",
+            "description": (
+                "Fields in this cluster are in arid conditions with "
+                "very low humidity and rainfall. "
+                "Careful irrigation scheduling is strongly recommended."
+            ),
+            "color": "#F59E0B",
+            "icon" : "sun",
         },
     }
     cluster_info = cluster_meta.get(cluster_id, cluster_meta[0])
 
-    # ── Risk Level ─────────────────────────────────────────
+    # Risk Level ─────────────────────────────────────────────────────────────
     high_pct = clf_proba[2] * 100
     if high_pct >= 70:
         risk_level = "Critical"
@@ -327,8 +329,8 @@ def full_field_prediction(form_data: dict) -> dict:
         risk_color = "#10B981"
         risk_icon  = "check-circle"
 
-    # ── Feature Contributions ──────────────────────────────
-    importances   = clf.feature_importances_
+    # Feature Contributions ──────────────────────────────────────────────────
+    importances  = clf.feature_importances_
     feat_contribs = []
     for feat, imp in zip(ALL_FEATURES, importances):
         feat_val = float(X[feat].iloc[0])
@@ -340,7 +342,7 @@ def full_field_prediction(form_data: dict) -> dict:
     feat_contribs.sort(key=lambda x: x["importance"], reverse=True)
     top_features = feat_contribs[:8]
 
-    # ── Weekly Schedule ────────────────────────────────────
+    # Weekly Schedule ────────────────────────────────────────────────────────
     daily_need = water_mm / 7 if needs_water else 0
     schedule   = []
     days       = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -353,54 +355,61 @@ def full_field_prediction(form_data: dict) -> dict:
             "recommended": needs_water and amt > 0,
         })
 
-    # ── Smart Recommendation ───────────────────────────────
+    # Smart Recommendation ───────────────────────────────────────────────────
     soil_m   = row.get("Soil_Moisture", 50)
     temp     = row.get("Temperature_C", 25)
     rainfall = row.get("Rainfall_mm", 0)
     prev_irr = row.get("Previous_Irrigation_mm", 0)
 
     if irr_need == "High":
-        rec = (f"⚠️ Immediate irrigation required. Apply {water_mm:.1f} mm "
-               f"as soon as possible. Soil moisture ({soil_m:.1f}%) is critically "
-               f"low and temperature ({temp:.1f}°C) is elevated.")
+        rec = (
+            f"⚠️ Immediate irrigation required. Apply {water_mm:.1f} mm "
+            f"as soon as possible. Soil moisture ({soil_m:.1f}%) is critically "
+            f"low and temperature ({temp:.1f}°C) is elevated."
+        )
     elif irr_need == "Medium":
-        rec = (f"📋 Schedule irrigation within 24–48 hours. Apply approximately "
-               f"{water_mm:.1f} mm. Current rainfall ({rainfall:.1f} mm) provides "
-               f"partial coverage.")
+        rec = (
+            f"📋 Schedule irrigation within 24–48 hours. Apply approximately "
+            f"{water_mm:.1f} mm. Current rainfall ({rainfall:.1f} mm) provides "
+            f"partial coverage."
+        )
     else:
-        rec = (f"✅ No immediate irrigation needed. Soil moisture ({soil_m:.1f}%) "
-               f"is adequate. Previous irrigation ({prev_irr:.1f} mm) is still "
-               f"effective. Next check recommended in 3–5 days.")
+        rec = (
+            f"✅ No immediate irrigation needed. Soil moisture ({soil_m:.1f}%) "
+            f"is adequate. Previous irrigation ({prev_irr:.1f} mm) is still "
+            f"effective. Next check recommended in 3–5 days."
+        )
 
-    # ── Water Volume & Cost ────────────────────────────────
+    # Water Volume & Cost ────────────────────────────────────────────────────
     field_area  = row.get("Field_Area_hectare", 1.0)
-    total_water = water_mm * field_area * 10     # litres
-    cost_est    = round(total_water * 0.002, 2)  # ₹0.002 per litre
+    total_water = water_mm * field_area * 10      # litres
+    cost_est    = round(total_water * 0.002, 2)   # ₹0.002 per litre
 
     return {
-        "irrigation_need"    : irr_need,
-        "needs_water"        : needs_water,
-        "proba_low"          : round(clf_proba[0] * 100, 1),
-        "proba_medium"       : round(clf_proba[1] * 100, 1),
-        "proba_high"         : round(clf_proba[2] * 100, 1),
-        "water_need_mm"      : round(water_mm, 2),
-        "cluster_id"         : cluster_id,
-        "cluster_label"      : cluster_info["label"],
+        "irrigation_need"   : irr_need,
+        "needs_water"       : needs_water,
+        "proba_low"         : round(clf_proba[0] * 100, 1),
+        "proba_medium"      : round(clf_proba[1] * 100, 1),
+        "proba_high"        : round(clf_proba[2] * 100, 1),
+        "water_need_mm"     : round(water_mm, 2),
+        "cluster_id"        : cluster_id,
+        "cluster_label"     : cluster_info["label"],
         "cluster_description": cluster_info["description"],
-        "cluster_color"      : cluster_info["color"],
-        "cluster_icon"       : cluster_info["icon"],
-        "risk_level"         : risk_level,
-        "risk_color"         : risk_color,
-        "risk_icon"          : risk_icon,
-        "recommendation"     : rec,
-        "top_features"       : top_features,
-        "schedule"           : schedule,
-        "total_water_litres" : round(total_water, 1),
-        "cost_estimate"      : cost_est,
-        "field_area"         : field_area,
-        "confidence"         : round(max(clf_proba) * 100, 1),
+        "cluster_color"     : cluster_info["color"],
+        "cluster_icon"      : cluster_info["icon"],
+        "risk_level"        : risk_level,
+        "risk_color"        : risk_color,
+        "risk_icon"         : risk_icon,
+        "recommendation"    : rec,
+        "top_features"      : top_features,
+        "schedule"          : schedule,
+        "total_water_litres": round(total_water, 1),
+        "cost_estimate"     : cost_est,
+        "field_area"        : field_area,
+        "confidence"        : round(max(clf_proba) * 100, 1),
     }
 
 
+# ── Entry point ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
