@@ -1,16 +1,18 @@
-{% extends "base.html" %} {% block title %}Home – IrriSmart AI{% endblock %} {%
-block page_title %}Home{% endblock %} {% block content %}
+{% extends "base.html" %}
+{% block title %}Home – IrriSmart AI{% endblock %}
+{% block page_title %}Home{% endblock %}
+{% block content %}
 
-<!-- Hero -->
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
 <div class="hero-badge">Powered by Machine Learning</div>
-<h1 class="hero-title">Smart Irrigation<br />Prediction System</h1>
+<h1 class="hero-title">Smart Irrigation<br/>Prediction System</h1>
 <p class="hero-sub">
-    AI-powered irrigation intelligence — classifies irrigation needs, predicts
-    water usage, and discovers field clusters using a pre-trained Random Forest
-    pipeline.
+    AI-powered irrigation intelligence — classifies irrigation needs,
+    predicts water usage, and discovers field clusters using LightGBM,
+    XGBoost, and Random Forest pipelines.
 </p>
 
-<!-- Dynamic Stats -->
+<!-- ── Hero Stats ───────────────────────────────────────────────────────── -->
 <div class="hero-stats">
     <div class="hero-stat">
         <span class="stat-num">{{ hero_stats.total_records }}</span>
@@ -26,8 +28,8 @@ block page_title %}Home{% endblock %} {% block content %}
     </div>
     {% if trained %}
     <div class="hero-stat">
-        <span class="stat-num">{{ hero_stats.acc_tuned }}</span>
-        <span class="stat-label">Best Accuracy</span>
+        <span class="stat-num">{{ hero_stats.acc_lgb }}</span>
+        <span class="stat-label">LightGBM Accuracy</span>
     </div>
     <div class="hero-stat">
         <span class="stat-num">{{ hero_stats.r2 }}</span>
@@ -36,6 +38,7 @@ block page_title %}Home{% endblock %} {% block content %}
     {% endif %}
 </div>
 
+<!-- ── Status Banner ────────────────────────────────────────────────────── -->
 {% if trained %}
 <div class="trained-banner">
     <i data-lucide="check-circle"></i>
@@ -44,22 +47,21 @@ block page_title %}Home{% endblock %} {% block content %}
     <a href="{{ url_for('field_predict') }}">Run Field Analysis</a>
 </div>
 {% else %}
-<div
-    class="trained-banner"
-    style="border-color: #f59e0b; background: #fef3c711"
->
-    <i data-lucide="alert-circle" style="color: #f59e0b"></i>
-    <span style="color: #92400e">
+<div class="trained-banner"
+     style="border-color:#f59e0b; background:#fef3c711">
+    <i data-lucide="alert-circle" style="color:#f59e0b"></i>
+    <span style="color:#92400e">
         Model artefacts not found. Please run
         <code>python train_and_save.py</code> locally and commit
-        <code>ml/saved_model/</code> to GitHub.
+        <code>ml/saved_model/</code> to the repository.
     </span>
 </div>
 {% endif %}
 
-<!-- Visual Cards Row -->
+<!-- ── Visual Cards ──────────────────────────────────────────────────────── -->
+
 <!-- Card 1: Irrigation Need -->
-<div class="visual-card">
+<div class="visual-card" style="margin-top:1.25rem">
     <div class="visual-icon"><i data-lucide="droplets"></i></div>
     <div class="visual-label">
         {% if trained %}Most Common Need{% else %}Irrigation Need{% endif %}
@@ -74,36 +76,33 @@ block page_title %}Home{% endblock %} {% block content %}
         {% endif %}
     </div>
     <div class="visual-bar">
-        <div
-            class="visual-fill"
-            style="width:{{ hero_visuals.need_fill }}%"
-        ></div>
+        <div class="visual-fill"
+             style="width:{{ hero_visuals.need_fill }}%"></div>
     </div>
     {% if trained %}
     <div class="visual-hint">
-        {{ get_state().target_counts.get(hero_visuals.irrigation_need, 0) }} of
-        {{ get_state().n_rows | default(0) }} records
+        {{ get_state().target_counts.get(hero_visuals.irrigation_need, 0) }}
+        of {{ get_state().n_rows | default(0) }} records
     </div>
     {% endif %}
 </div>
 
 <!-- Card 2: Water Estimate -->
-<div class="visual-card" style="margin-top: 0.75rem">
+<div class="visual-card" style="margin-top:0.75rem">
     <div class="visual-icon teal"><i data-lucide="thermometer"></i></div>
     <div class="visual-label">
         {% if trained %}Avg Water Estimate{% else %}Water Needed{% endif %}
     </div>
     <div class="visual-value">
-        {% if trained %}{{ hero_visuals.water_needed }} {% else %}<span
-            class="pending-val"
-            >—</span
-        >{% endif %}
+        {% if trained %}
+            {{ hero_visuals.water_needed }}
+        {% else %}
+            <span class="pending-val">—</span>
+        {% endif %}
     </div>
     <div class="visual-bar">
-        <div
-            class="visual-fill teal"
-            style="width:{{ hero_visuals.water_fill }}%"
-        ></div>
+        <div class="visual-fill teal"
+             style="width:{{ hero_visuals.water_fill }}%"></div>
     </div>
     {% if trained %}
     <div class="visual-hint">
@@ -113,51 +112,38 @@ block page_title %}Home{% endblock %} {% block content %}
 </div>
 
 <!-- Card 3: Field Cluster -->
-<div class="visual-card" style="margin-top: 0.75rem">
+<div class="visual-card" style="margin-top:0.75rem">
     <div class="visual-icon orange"><i data-lucide="layers"></i></div>
     <div class="visual-label">
-        {% if trained %}Largest Cluster{% else %}Field Cluster{% endif %}
+        {% if trained %}Dominant K-Means Cluster{% else %}Field Cluster{% endif %}
     </div>
     <div class="visual-value">
-        {% if trained %}{{ hero_visuals.field_cluster }} {% else %}<span
-            class="pending-val"
-            >—</span
-        >{% endif %}
+        {% if trained %}
+            {{ hero_visuals.field_cluster }}
+        {% else %}
+            <span class="pending-val">—</span>
+        {% endif %}
     </div>
     <div class="visual-bar">
-        <div
-            class="visual-fill orange"
-            style="width:{{ hero_visuals.clust_fill }}%"
-        ></div>
+        <div class="visual-fill orange"
+             style="width:{{ hero_visuals.clust_fill }}%"></div>
     </div>
     {% if trained %}
     <div class="visual-hint">
-        K-Means k=3 | {{ get_state().cluster_dist | sum_values }} sampled fields
+        K-Means k=3 |
+        {{ get_state().cluster_dist | sum_values }} sampled fields
     </div>
     {% endif %}
 </div>
 
+<!-- ── Model Summary Grid ────────────────────────────────────────────────── -->
 {% if trained %}
-<!-- Last Training Summary -->
-{% set _st = get_state() %}
-<div class="section-title-wrap" style="margin-top: 2rem">
+<div class="section-title-wrap" style="margin-top:2rem">
     <h2 class="section-title">Model Summary</h2>
     <p class="section-sub">Metrics from the pre-trained pipeline</p>
 </div>
-
 <div class="summary-grid">
-    {% for label, value, color, icon in [ ("Dataset Rows",
-    "{:,}".format(_st.n_rows), "#3B82F6", "database"), ("Dataset Columns",
-    _st.n_cols | string, "#8B5CF6", "table"), ("Features Used", _st.n_features |
-    string, "#10B981", "list"), ("Baseline Acc", "{:.4f}".format(_st.acc_base),
-    "#F59E0B", "target"), ("Tuned Acc", "{:.4f}".format(_st.acc_tuned),
-    "#3B82F6", "zap"), ("CV Mean Acc", "{:.4f}".format(_st.cv_mean), "#8B5CF6",
-    "activity"), ("CV Std Dev", "{:.4f}".format(_st.cv_std), "#6366F1",
-    "minus"), ("RMSE", "{:.4f}".format(_st.rmse), "#EF4444", "bar-chart"),
-    ("MAE", "{:.4f}".format(_st.mae), "#F97316", "minus-circle"), ("R² Score",
-    "{:.4f}".format(_st.r2), "#10B981", "trending-up"), ("DBSCAN Clusters",
-    _st.n_clusters_db | string, "#F59E0B", "layers"), ("Noise Points",
-    "{:,}".format(_st.n_noise), "#EF4444", "alert-circle"), ] %}
+    {% for label, value, color, icon in summary_items %}
     <div class="summary-item" style="border-top:3px solid {{ color }}">
         <i data-lucide="{{ icon }}" style="color:{{ color }}"></i>
         <div class="summary-value">{{ value }}</div>
@@ -167,20 +153,31 @@ block page_title %}Home{% endblock %} {% block content %}
 </div>
 {% endif %}
 
-<!-- What the Pipeline Does -->
-<div class="section-title-wrap" style="margin-top: 2.5rem">
+<!-- ── What the Pipeline Does ────────────────────────────────────────────── -->
+<div class="section-title-wrap" style="margin-top:2.5rem">
     <h2 class="section-title">What the Pipeline Does</h2>
 </div>
 
-{% set features = [ ("bar-chart-2", "EDA", "Explore distributions, correlations,
-and class balance automatically.", "#3B82F6"), ("cpu", "Classification", "Random
-Forest predicts Low / Medium / High irrigation need.", "#8B5CF6"),
-("trending-up", "Regression", "Predict exact water usage in millimetres with
-high accuracy.", "#10B981"), ("sliders", "Hyperparameter Tuning", "GridSearchCV
-finds the optimal model configuration over 54 combos.", "#F59E0B"), ("layers",
-"Clustering", "K-Means, DBSCAN & Agglomerative group similar fields
-automatically.", "#EF4444"), ("pie-chart", "Visualisations", "13+ rich charts
-auto-generated and displayed in the dashboard.", "#6366F1"), ] %}
+{% set features = [
+    ("cpu",         "Classification",
+     "LightGBM & XGBoost predict Low / Medium / High irrigation need with cross-validation.",
+     "#8B5CF6"),
+    ("trending-up", "Regression",
+     "Random Forest Regressor predicts exact water usage in millimetres.",
+     "#10B981"),
+    ("bar-chart-2", "EDA",
+     "Explore distributions, correlations, and class balance across all features.",
+     "#3B82F6"),
+    ("layers",      "K-Means Clustering",
+     "K-Means (k=3) groups fields into High Demand, Rain-Fed, and Dry Zone clusters.",
+     "#EF4444"),
+    ("pie-chart",   "Visualisations",
+     "12+ charts covering EDA, model performance, feature importance & clustering.",
+     "#6366F1"),
+    ("activity",    "Cross-Validation",
+     "5-fold cross-validation ensures robust and generalisable model performance.",
+     "#F59E0B"),
+] %}
 
 <div class="feature-grid">
     {% for icon, title, desc, color in features %}
@@ -194,12 +191,10 @@ auto-generated and displayed in the dashboard.", "#6366F1"), ] %}
     {% endfor %}
 </div>
 
-<!-- Quick Actions -->
+<!-- ── Quick Actions ─────────────────────────────────────────────────────── -->
 {% if trained %}
-<div
-    class="quick-actions"
-    style="margin-top: 2rem; display: flex; gap: 1rem; flex-wrap: wrap"
->
+<div class="quick-actions"
+     style="margin-top:2rem; display:flex; gap:1rem; flex-wrap:wrap">
     <a href="{{ url_for('field_predict') }}" class="btn btn-primary btn-lg">
         <i data-lucide="flask-conical"></i> Run Field Analysis
     </a>
@@ -210,4 +205,7 @@ auto-generated and displayed in the dashboard.", "#6366F1"), ] %}
         <i data-lucide="layout-dashboard"></i> Dashboard
     </a>
 </div>
-{% endif %} {% endblock %} {% block scripts %}{% endblock %}
+{% endif %}
+
+{% endblock %}
+{% block scripts %}{% endblock %}

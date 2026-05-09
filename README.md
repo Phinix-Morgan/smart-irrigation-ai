@@ -3,12 +3,34 @@
 ## Setup
 
 ```bash
-# 1. Create virtual environment
+# IrriSmart AI 
+
+## Setup Instructions
+
+### Windows
+
+#### Using Venv
 python -m venv venv
-source venv/bin/activate   # Windows: venv\Scripts\activate
-
-# 2. Install dependencies
+venv\Scripts\activate
 pip install -r requirements.txt
+python app.py
 
-# 3. Run the application
+#### Using Conda
+conda create -n irrismart python=3.10 -y
+conda activate irrismart
+pip install -r requirements.txt
+python app.py
+
+### Linux (Arch)
+
+#### Using Venv
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python app.py
+
+#### Using Conda
+conda create -n irrismart python=3.10 -y
+conda activate irrismart
+pip install -r requirements.txt
 python app.py

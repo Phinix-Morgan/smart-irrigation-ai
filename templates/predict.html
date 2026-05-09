@@ -1,213 +1,928 @@
 {% extends "base.html" %}
 {% block title %}Quick Predict – IrriSmart AI{% endblock %}
 {% block page_title %}Quick Predict{% endblock %}
-
 {% block content %}
+
 <div class="predict-layout">
 
-  <!-- ── Form ─────────────────────────────────────────── -->
-  <div class="predict-form-panel" data-aos="fade-right">
-    <div class="panel-header">
-      <i data-lucide="cpu"></i>
-      <h2>Enter Field Data</h2>
-      <p>Fill in sensor readings and field attributes to get a prediction.</p>
+    <!-- ── Form ─────────────────────────────────────────────────────────── -->
+    <div class="predict-form-panel" data-aos="fade-right">
+
+        <div class="panel-header">
+            <div class="panel-header-icon">
+                <i data-lucide="cpu"></i>
+            </div>
+            <div>
+                <h2>Enter Field Data</h2>
+                <p>Fill in sensor readings and field attributes to get a
+                   prediction.</p>
+            </div>
+        </div>
+
+        <form method="POST"
+              action="{{ url_for('predict') }}"
+              id="predictForm"
+              novalidate>
+
+            <!-- Environmental -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <div class="fst-icon" style="background:#EF444418;
+                                                  color:#EF4444">
+                        <i data-lucide="thermometer"></i>
+                    </div>
+                    Environmental Sensors
+                </div>
+                <div class="form-grid">
+                    {# min/max match feature_ranges in app.py #}
+                    {% for name, label, ph, fmin, fmax, step, unit in [
+                        ("Temperature_C",  "Temperature",   "24.0",
+                         0,   50,   0.1, "°C"),
+                        ("Humidity",       "Humidity",      "72.0",
+                         0,   100,  0.1, "%"),
+                        ("Rainfall_mm",    "Rainfall",      "45.0",
+                         0,   300,  0.1, "mm"),
+                        ("Sunlight_Hours", "Sunlight Hours","6.5",
+                         0,   16,   0.1, "h"),
+                        ("Wind_Speed_kmh", "Wind Speed",    "12.0",
+                         0,   120,  0.1, "km/h"),
+                    ] %}
+                    <div class="form-group" id="grp_{{ name }}">
+                        <label for="{{ name }}">
+                            {{ label }}
+                            <span class="field-unit">{{ unit }}</span>
+                        </label>
+                        <div class="input-wrap">
+                            <input type="number"
+                                   name="{{ name }}" id="{{ name }}"
+                                   min="{{ fmin }}" max="{{ fmax }}"
+                                   step="{{ step }}"
+                                   placeholder="e.g. {{ ph }}"
+                                   value="{{ request.form.get(name, '') }}"
+                                   data-min="{{ fmin }}"
+                                   data-max="{{ fmax }}"
+                                   data-label="{{ label }}"
+                                   oninput="validateField(this)"
+                                   required/>
+                        </div>
+                        <div class="field-hint">
+                            Range: {{ fmin }} – {{ fmax }} {{ unit }}
+                        </div>
+                        <div class="field-error" id="err_{{ name }}"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Soil -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <div class="fst-icon" style="background:#10B98118;
+                                                  color:#10B981">
+                        <i data-lucide="layers"></i>
+                    </div>
+                    Soil Properties
+                </div>
+                <div class="form-grid">
+                    {% for name, label, ph, fmin, fmax, step, unit in [
+                        ("Soil_pH",
+                         "Soil pH",               "6.8",
+                         3.5,  9.5,  0.01, "pH"),
+                        ("Soil_Moisture",
+                         "Soil Moisture",          "55.0",
+                         0,    100,  0.1,  "%"),
+                        ("Organic_Carbon",
+                         "Organic Carbon",         "3.2",
+                         0,    10,   0.01, "%"),
+                        ("Electrical_Conductivity",
+                         "Elec. Conductivity",     "0.4",
+                         0,    10,   0.01, "dS/m"),
+                    ] %}
+                    <div class="form-group" id="grp_{{ name }}">
+                        <label for="{{ name }}">
+                            {{ label }}
+                            <span class="field-unit">{{ unit }}</span>
+                        </label>
+                        <div class="input-wrap">
+                            <input type="number"
+                                   name="{{ name }}" id="{{ name }}"
+                                   min="{{ fmin }}" max="{{ fmax }}"
+                                   step="{{ step }}"
+                                   placeholder="e.g. {{ ph }}"
+                                   value="{{ request.form.get(name, '') }}"
+                                   data-min="{{ fmin }}"
+                                   data-max="{{ fmax }}"
+                                   data-label="{{ label }}"
+                                   oninput="validateField(this)"
+                                   required/>
+                        </div>
+                        <div class="field-hint">
+                            Range: {{ fmin }} – {{ fmax }} {{ unit }}
+                        </div>
+                        <div class="field-error" id="err_{{ name }}"></div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Field Info -->
+            <div class="form-section">
+                <div class="form-section-title">
+                    <div class="fst-icon" style="background:#F59E0B18;
+                                                  color:#F59E0B">
+                        <i data-lucide="map"></i>
+                    </div>
+                    Field Information
+                </div>
+                <div class="form-grid">
+                    {% for name, label, ph, fmin, fmax, step, unit in [
+                        ("Field_Area_hectare",
+                         "Field Area",        "4.0",
+                         0.1, 500, 0.1, "ha"),
+                        ("Previous_Irrigation_mm",
+                         "Prev. Irrigation",  "35.0",
+                         0,   300, 0.1, "mm"),
+                    ] %}
+                    <div class="form-group" id="grp_{{ name }}">
+                        <label for="{{ name }}">
+                            {{ label }}
+                            <span class="field-unit">{{ unit }}</span>
+                        </label>
+                        <div class="input-wrap">
+                            <input type="number"
+                                   name="{{ name }}" id="{{ name }}"
+                                   min="{{ fmin }}" max="{{ fmax }}"
+                                   step="{{ step }}"
+                                   placeholder="e.g. {{ ph }}"
+                                   value="{{ request.form.get(name, '') }}"
+                                   data-min="{{ fmin }}"
+                                   data-max="{{ fmax }}"
+                                   data-label="{{ label }}"
+                                   oninput="validateField(this)"
+                                   required/>
+                        </div>
+                        <div class="field-hint">
+                            Range: {{ fmin }} – {{ fmax }} {{ unit }}
+                        </div>
+                        <div class="field-error" id="err_{{ name }}"></div>
+                    </div>
+                    {% endfor %}
+
+                    {% for col, options in cat_options.items() %}
+                    <div class="form-group">
+                        <label for="p_{{ col }}">
+                            {{ col.replace('_', ' ') | title }}
+                        </label>
+                        <div class="input-wrap">
+                            <select name="{{ col }}"
+                                    id="p_{{ col }}"
+                                    class="fp-select"
+                                    required>
+                                <option value="" disabled
+                                        {% if not request.form.get(col) %}
+                                        selected{% endif %}>
+                                    Select…
+                                </option>
+                                {% for opt in options %}
+                                <option value="{{ opt }}"
+                                        {% if request.form.get(col)==opt %}
+                                        selected{% endif %}>
+                                    {{ opt }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Validation summary -->
+            <div class="val-summary" id="valSummary" style="display:none">
+                <i data-lucide="alert-triangle"></i>
+                <span id="valSummaryText"></span>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit"
+                        class="btn btn-primary btn-lg"
+                        id="predictSubmitBtn">
+                    <i data-lucide="zap"></i> Run Prediction
+                </button>
+                <button type="button"
+                        class="btn btn-outline"
+                        onclick="fillSampleData()">
+                    <i data-lucide="sliders"></i> Sample Data
+                </button>
+                <button type="button"
+                        class="btn btn-outline"
+                        onclick="resetPredictForm()">
+                    <i data-lucide="rotate-ccw"></i> Reset
+                </button>
+                <a href="{{ url_for('field_predict') }}"
+                   class="btn btn-outline">
+                    <i data-lucide="flask-conical"></i> Full Analysis
+                </a>
+            </div>
+        </form>
     </div>
 
-    <form method="POST" action="{{ url_for('predict') }}" id="predictForm">
+    <!-- ── Result ────────────────────────────────────────────────────────── -->
+    <div class="predict-result-panel" data-aos="fade-left">
+        {% if result %}
+        <div class="result-card animate-in">
 
-      <!-- Environmental -->
-      <div class="form-section">
-        <div class="form-section-title">
-          <i data-lucide="thermometer"></i> Environmental Sensors
+            <!-- Header -->
+            <div class="result-header">
+                <div class="result-header-icon">
+                    <i data-lucide="check-circle"></i>
+                </div>
+                <div>
+                    <h2>Prediction Result</h2>
+                    <p style="font-size:0.78rem;color:var(--text-muted);
+                               margin:0">
+                        LightGBM classifier · Acc 99.85%
+                    </p>
+                </div>
+            </div>
+
+            <!-- Irrigation Need badge -->
+            <div class="result-main">
+                <div class="result-label">Irrigation Need</div>
+                <div class="result-value
+                            need-{{ result.irrigation_need | lower }}">
+                    {{ result.irrigation_need }}
+                </div>
+            </div>
+
+            <!-- Class Probabilities -->
+            <div class="prob-section">
+                <div class="prob-title">Class Probabilities</div>
+                {% for cls, val, color in [
+                    ("Low",    result.proba_low,    "#10B981"),
+                    ("Medium", result.proba_medium, "#F59E0B"),
+                    ("High",   result.proba_high,   "#EF4444"),
+                ] %}
+                <div class="prob-row">
+                    <span class="prob-label">{{ cls }}</span>
+                    <div class="prob-bar-outer">
+                        <div class="prob-bar-inner cls-{{ cls | lower }}"
+                             style="width:{{ val }}%"></div>
+                    </div>
+                    <span class="prob-pct"
+                          style="color:{{ color }}">{{ val }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Water Required metric -->
+            <div class="result-metric">
+                <div class="rm-icon teal">
+                    <i data-lucide="droplets"></i>
+                </div>
+                <div>
+                    <div class="rm-label">Water Required</div>
+                    <div class="rm-value">{{ result.water_need_mm }} mm</div>
+                </div>
+            </div>
+
+            <!-- Advice block -->
+            <div class="result-advice
+                        advice-{{ result.irrigation_need | lower }}">
+                <div class="advice-icon-row">
+                    <i data-lucide="lightbulb"></i>
+                    <span class="advice-heading">
+                        {% if result.irrigation_need == "High" %}
+                            Immediate Action Required
+                        {% elif result.irrigation_need == "Medium" %}
+                            Moderate Irrigation Advised
+                        {% else %}
+                            Field Is Well-Watered
+                        {% endif %}
+                    </span>
+                </div>
+
+                {% if result.irrigation_need == "High" %}
+                <div class="advice-body">
+                    <p>Apply irrigation <strong>now</strong> to prevent
+                       crop stress.</p>
+                    <div class="advice-amount-pill">
+                        <i data-lucide="droplets"></i>
+                        <span>{{ result.water_need_mm }} mm</span>
+                        <span class="advice-amount-label">recommended</span>
+                    </div>
+                </div>
+
+                {% elif result.irrigation_need == "Medium" %}
+                <div class="advice-body">
+                    <p>Consider irrigating <strong>within the next
+                       24–48 hours</strong> to maintain optimal
+                       soil moisture.</p>
+                    <div class="advice-amount-pill">
+                        <i data-lucide="droplets"></i>
+                        <span>{{ result.water_need_mm }} mm</span>
+                        <span class="advice-amount-label">apply soon</span>
+                    </div>
+                </div>
+
+                {% else %}
+                <div class="advice-body">
+                    <p>No immediate irrigation needed. Soil moisture
+                       levels are adequate.</p>
+                    <div class="advice-amount-pill advice-amount-ok">
+                        <i data-lucide="check-circle"></i>
+                        <span>Check again in 3–5 days</span>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- CTA -->
+            <div class="result-cta">
+                <a href="{{ url_for('field_predict') }}"
+                   class="btn btn-outline"
+                   style="width:100%; justify-content:center;
+                          margin-top:.75rem">
+                    <i data-lucide="flask-conical"></i>
+                    Get Full Field Analysis
+                </a>
+            </div>
         </div>
-        <div class="form-grid">
-          {% for name, label, mn, mx, step, ph in [
-            ("Temperature_C",  "Temperature (°C)",  "0",  "60",  "0.1", "28.5"),
-            ("Humidity",       "Humidity (%)",       "0",  "100", "0.1", "65.0"),
-            ("Rainfall_mm",    "Rainfall (mm)",      "0",  "500", "0.1", "12.0"),
-            ("Sunlight_Hours", "Sunlight Hours",     "0",  "24",  "0.1", "8.0"),
-            ("Wind_Speed_kmh", "Wind Speed (km/h)",  "0",  "200", "0.1", "15.0"),
-          ] %}
-          <div class="form-group">
-            <label for="{{ name }}">{{ label }}</label>
-            <input type="number" name="{{ name }}" id="{{ name }}"
-                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
-                   placeholder="{{ ph }}"
-                   value="{{ request.form.get(name, '') }}" required/>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
 
-      <!-- Soil -->
-      <div class="form-section">
-        <div class="form-section-title">
-          <i data-lucide="layers"></i> Soil Properties
-        </div>
-        <div class="form-grid">
-          {% for name, label, mn, mx, step, ph in [
-            ("Soil_pH",                 "Soil pH",                "0", "14",  "0.01", "6.5"),
-            ("Soil_Moisture",           "Soil Moisture (%)",      "0", "100", "0.1",  "35.0"),
-            ("Organic_Carbon",          "Organic Carbon (%)",     "0", "100", "0.01", "2.5"),
-            ("Electrical_Conductivity", "Electrical Conductivity","0", "10",  "0.01", "0.8"),
-          ] %}
-          <div class="form-group">
-            <label for="{{ name }}">{{ label }}</label>
-            <input type="number" name="{{ name }}" id="{{ name }}"
-                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
-                   placeholder="{{ ph }}"
-                   value="{{ request.form.get(name, '') }}" required/>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
-
-      <!-- Field Info -->
-      <div class="form-section">
-        <div class="form-section-title">
-          <i data-lucide="map"></i> Field Information
-        </div>
-        <div class="form-grid">
-
-          {% for name, label, mn, mx, step, ph in [
-            ("Field_Area_hectare",     "Field Area (ha)",         "0", "1000","0.01","5.0"),
-            ("Previous_Irrigation_mm", "Prev. Irrigation (mm)",   "0", "500", "0.1", "20.0"),
-          ] %}
-          <div class="form-group">
-            <label for="{{ name }}">{{ label }}</label>
-            <input type="number" name="{{ name }}" id="{{ name }}"
-                   min="{{ mn }}" max="{{ mx }}" step="{{ step }}"
-                   placeholder="{{ ph }}"
-                   value="{{ request.form.get(name, '') }}" required/>
-          </div>
-          {% endfor %}
-
-          <!-- ✅ FIXED: each col gets its OWN options from its OWN encoder -->
-          {% for col, options in cat_options.items() %}
-          <div class="form-group">
-            <label for="{{ col }}">
-              {{ col.replace('_', ' ') | title }}
-            </label>
-            <select name="{{ col }}" id="{{ col }}" required>
-              <option value="" disabled
-                {% if not request.form.get(col) %}selected{% endif %}>
-                Select…
-              </option>
-              {% for opt in options %}
-              <option value="{{ opt }}"
-                {% if request.form.get(col) == opt %}selected{% endif %}>
-                {{ opt }}
-              </option>
-              {% endfor %}
-            </select>
-          </div>
-          {% endfor %}
-
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary btn-lg">
-          <i data-lucide="zap"></i> Run Prediction
-        </button>
-        <button type="reset" class="btn btn-outline">
-          <i data-lucide="rotate-ccw"></i> Reset
-        </button>
-        <a href="{{ url_for('field_predict') }}" class="btn btn-outline">
-          <i data-lucide="flask-conical"></i> Full Analysis
-        </a>
-      </div>
-    </form>
-  </div>
-
-  <!-- ── Result ─────────────────────────────────────────── -->
-  <div class="predict-result-panel" data-aos="fade-left">
-    {% if result %}
-
-    <div class="result-card animate-in">
-      <div class="result-header">
-        <i data-lucide="check-circle"></i>
-        <h2>Prediction Result</h2>
-      </div>
-
-      <div class="result-main">
-        <div class="result-label">Irrigation Need</div>
-        <div class="result-value need-{{ result.irrigation_need | lower }}">
-          {{ result.irrigation_need }}
-        </div>
-      </div>
-
-      <div class="prob-section">
-        <div class="prob-title">Class Probabilities</div>
-        {% for cls, val, color in [
-          ("Low",    result.proba_low,    "#10B981"),
-          ("Medium", result.proba_medium, "#F59E0B"),
-          ("High",   result.proba_high,   "#EF4444"),
-        ] %}
-        <div class="prob-row">
-          <span class="prob-label">{{ cls }}</span>
-          <div class="prob-bar-outer">
-            <div class="prob-bar-inner cls-{{ cls | lower }}"
-                 style="width:{{ val }}%"></div>
-          </div>
-          <span class="prob-pct">{{ val }}%</span>
-        </div>
-        {% endfor %}
-      </div>
-
-      <div class="result-metric">
-        <div class="rm-icon teal"><i data-lucide="droplets"></i></div>
-        <div>
-          <div class="rm-label">Water Required</div>
-          <div class="rm-value">{{ result.water_need_mm }} mm</div>
-        </div>
-      </div>
-
-      <div class="result-advice advice-{{ result.irrigation_need | lower }}">
-        <i data-lucide="lightbulb"></i>
-        {% if result.irrigation_need == "High" %}
-          Immediate irrigation is recommended. Allocate approximately
-          <strong>{{ result.water_need_mm }} mm</strong> of water now.
-        {% elif result.irrigation_need == "Medium" %}
-          Moderate irrigation advised. Consider applying around
-          <strong>{{ result.water_need_mm }} mm</strong> soon.
         {% else %}
-          Field is well-watered. No immediate irrigation needed.
-          Schedule next check in 3–5 days.
+
+        <!-- Placeholder -->
+        <div class="result-placeholder">
+            <div class="placeholder-icon">
+                <i data-lucide="cpu"></i>
+            </div>
+            <h3>Awaiting Input</h3>
+            <p>Fill in the form and click
+               <strong>Run Prediction</strong> to see results.</p>
+
+            <!-- Value ranges table -->
+            <div class="ranges-table">
+                <p class="ranges-title">Typical value ranges</p>
+                {% for field, lo, hi, unit, note in [
+                    ("Temperature",    15,  45,  "°C",   "summer: 30–40"),
+                    ("Humidity",       30,  90,  "%",    "monsoon: 70–85"),
+                    ("Rainfall",        0, 200,  "mm",   "dry: 0–10"),
+                    ("Soil Moisture",  10,  80,  "%",    "stressed: <25"),
+                    ("Soil pH",       5.5, 7.5,  "",     "ideal: 6.0–7.0"),
+                    ("Organic Carbon", 0.5, 5.0, "%",    "good: >2.0"),
+                ] %}
+                <div class="range-row">
+                    <span class="range-field">{{ field }}</span>
+                    <div class="range-pills">
+                        <span class="range-badge">
+                            {{ lo }}–{{ hi }}{{ unit }}
+                        </span>
+                        <span class="range-note">{{ note }}</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Tips -->
+            <div class="placeholder-tips">
+                {% for icon, tip in [
+                    ("droplets",  "Soil Moisture is the top predictor"),
+                    ("sun",       "Temperature & Rainfall drive water need"),
+                    ("sliders",   "Click \"Sample Data\" for a quick example"),
+                ] %}
+                <div class="tip">
+                    <div class="tip-icon">
+                        <i data-lucide="{{ icon }}"></i>
+                    </div>
+                    <span>{{ tip }}</span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Quick-fill CTA -->
+            <button class="btn btn-primary"
+                    style="width:100%; justify-content:center;
+                           margin-top:1.25rem"
+                    onclick="fillSampleData()">
+                <i data-lucide="sliders"></i> Try Sample Data
+            </button>
+        </div>
         {% endif %}
-      </div>
-
-      <div class="result-cta">
-        <a href="{{ url_for('field_predict') }}" class="btn btn-outline"
-           style="width:100%; justify-content:center; margin-top:.75rem">
-          <i data-lucide="flask-conical"></i>
-          Get Full Field Analysis
-        </a>
-      </div>
     </div>
-
-    {% else %}
-
-    <div class="result-placeholder">
-      <div class="placeholder-icon"><i data-lucide="cpu"></i></div>
-      <h3>Awaiting Input</h3>
-      <p>Fill in the form and click <strong>Run Prediction</strong>
-         to see results here.</p>
-      <div class="placeholder-tips">
-        <div class="tip">
-          <i data-lucide="check"></i> Soil Moisture is the top predictor
-        </div>
-        <div class="tip">
-          <i data-lucide="check"></i> Temperature influences water usage
-        </div>
-        <div class="tip">
-          <i data-lucide="check"></i> Rainfall reduces irrigation demand
-        </div>
-      </div>
-    </div>
-
-    {% endif %}
-  </div>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Field bounds (must match feature_ranges in app.py) ───────────────────
+const FIELD_BOUNDS = {
+    Temperature_C           : { min: 0,   max: 50  },
+    Humidity                : { min: 0,   max: 100 },
+    Rainfall_mm             : { min: 0,   max: 300 },
+    Sunlight_Hours          : { min: 0,   max: 16  },
+    Wind_Speed_kmh          : { min: 0,   max: 120 },
+    Soil_pH                 : { min: 3.5, max: 9.5 },
+    Soil_Moisture           : { min: 0,   max: 100 },
+    Organic_Carbon          : { min: 0,   max: 10  },
+    Electrical_Conductivity : { min: 0,   max: 10  },
+    Field_Area_hectare      : { min: 0.1, max: 500 },
+    Previous_Irrigation_mm  : { min: 0,   max: 300 },
+};
+
+// ── Per-field validation ─────────────────────────────────────────────────
+function validateField(inp) {
+    const name  = inp.name;
+    const val   = parseFloat(inp.value);
+    const label = inp.dataset.label || name;
+    const mn    = parseFloat(inp.dataset.min);
+    const mx    = parseFloat(inp.dataset.max);
+    const grp   = document.getElementById("grp_" + name);
+    const err   = document.getElementById("err_" + name);
+    if (!err) return true;
+
+    // Empty is handled by "required" — skip range check
+    if (inp.value === "") {
+        clearError(inp, grp, err);
+        return true;
+    }
+
+    if (isNaN(val)) {
+        setError(inp, grp, err, `${label}: enter a valid number.`);
+        return false;
+    }
+    if (val < mn) {
+        // Clamp silently and show warning
+        inp.value = mn;
+        setError(inp, grp, err,
+            `${label} cannot be less than ${mn}. Clamped to ${mn}.`);
+        // Auto-clear after 2 s
+        setTimeout(() => clearError(inp, grp, err), 2000);
+        return true;
+    }
+    if (val > mx) {
+        inp.value = mx;
+        setError(inp, grp, err,
+            `${label} cannot exceed ${mx}. Clamped to ${mx}.`);
+        setTimeout(() => clearError(inp, grp, err), 2000);
+        return true;
+    }
+    clearError(inp, grp, err);
+    return true;
+}
+
+function setError(inp, grp, err, msg) {
+    err.textContent = msg;
+    err.style.display = "block";
+    if (grp) grp.classList.add("has-error");
+    inp.classList.add("inp-error");
+}
+function clearError(inp, grp, err) {
+    err.textContent = "";
+    err.style.display = "none";
+    if (grp) grp.classList.remove("has-error");
+    inp.classList.remove("inp-error");
+}
+
+// ── Form submit — full validation pass ───────────────────────────────────
+document.getElementById("predictForm").addEventListener("submit", function(e) {
+    let errors = [];
+    document.querySelectorAll("#predictForm input[type='number']")
+            .forEach(inp => {
+        if (inp.value === "") return; // "required" will catch blanks
+        const val = parseFloat(inp.value);
+        const mn  = parseFloat(inp.dataset.min);
+        const mx  = parseFloat(inp.dataset.max);
+        const lbl = inp.dataset.label || inp.name;
+        if (!isNaN(mn) && val < mn) {
+            inp.value = mn;
+            errors.push(`${lbl} clamped to ${mn}`);
+        }
+        if (!isNaN(mx) && val > mx) {
+            inp.value = mx;
+            errors.push(`${lbl} clamped to ${mx}`);
+        }
+    });
+
+    const summary = document.getElementById("valSummary");
+    const stext   = document.getElementById("valSummaryText");
+    if (errors.length) {
+        summary.style.display = "flex";
+        stext.textContent =
+            "Some values were out of range and have been corrected: " +
+            errors.join("; ") + ". Please review before submitting.";
+        lucide.createIcons();
+        // Allow submission after correction — do NOT call e.preventDefault()
+    } else {
+        summary.style.display = "none";
+    }
+
+    // Show loading state on button
+    const btn = document.getElementById("predictSubmitBtn");
+    btn.disabled = true;
+    btn.innerHTML =
+        '<i data-lucide="loader-2" class="spin"></i> Analysing…';
+    lucide.createIcons();
+});
+
+// ── Sample Data ──────────────────────────────────────────────────────────
+const LOW_SAMPLE = {
+    Temperature_C           : 22.0,
+    Humidity                : 75.0,
+    Rainfall_mm             : 42.0,
+    Sunlight_Hours          : 5.5,
+    Wind_Speed_kmh          : 10.0,
+    Soil_pH                 : 6.8,
+    Soil_Moisture           : 58.0,
+    Organic_Carbon          : 3.2,
+    Electrical_Conductivity : 0.35,
+    Field_Area_hectare      : 4.0,
+    Previous_Irrigation_mm  : 38.0,
+};
+const CAT_SAMPLE = {
+    Soil_Type         : "Loamy",
+    Crop_Type         : "Wheat",
+    Crop_Growth_Stage : "Vegetative",
+    Season            : "Rabi",
+    Irrigation_Type   : "Drip",
+    Water_Source      : "Canal",
+    Mulching_Used     : "Yes",
+    Region            : "North",
+};
+
+function fillSampleData() {
+    Object.entries(LOW_SAMPLE).forEach(([name, val]) => {
+        const inp = document.getElementById(name);
+        if (inp) {
+            inp.value = val;
+            validateField(inp);
+        }
+    });
+    Object.entries(CAT_SAMPLE).forEach(([col, target]) => {
+        const sel = document.getElementById("p_" + col);
+        if (!sel) return;
+        for (let i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === target) {
+                sel.selectedIndex = i; break;
+            }
+        }
+    });
+}
+
+// ── Reset ────────────────────────────────────────────────────────────────
+function resetPredictForm() {
+    document.querySelectorAll("#predictForm input[type='number']")
+            .forEach(inp => {
+        inp.value = "";
+        const grp = document.getElementById("grp_" + inp.name);
+        const err = document.getElementById("err_" + inp.name);
+        if (grp) grp.classList.remove("has-error");
+        if (err) { err.textContent=""; err.style.display="none"; }
+        inp.classList.remove("inp-error");
+    });
+    document.querySelectorAll("#predictForm select")
+            .forEach(sel => { sel.selectedIndex = 0; });
+    const summary = document.getElementById("valSummary");
+    if (summary) summary.style.display = "none";
+}
+</script>
+
+<style>
+/* ════════════════════════════════════════════════════════════════════════
+   PANEL HEADER
+   ════════════════════════════════════════════════════════════════════════ */
+.panel-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.panel-header-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 0.75rem;
+    background: #3B82F618;
+    color: #3B82F6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.panel-header-icon i { width: 22px; height: 22px; }
+.panel-header h2 { margin: 0 0 0.2rem; font-size: 1.2rem; }
+.panel-header p  { margin: 0; font-size: 0.82rem;
+                   color: var(--text-muted); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORM SECTION TITLE
+   ════════════════════════════════════════════════════════════════════════ */
+.form-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+}
+.fst-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.fst-icon i { width: 15px; height: 15px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   FORM FIELDS
+   ════════════════════════════════════════════════════════════════════════ */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+.form-group label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.field-unit {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--border);
+    padding: 0.1rem 0.45rem;
+    border-radius: 99px;
+}
+.input-wrap {
+    position: relative;
+}
+.input-wrap input,
+.input-wrap select {
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 0.5rem;
+    border: 1.5px solid var(--border);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.88rem;
+    background: var(--surface);
+    color: var(--text);
+    transition: border-color 0.18s, box-shadow 0.18s;
+    outline: none;
+}
+.input-wrap input:focus,
+.input-wrap select:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px #3B82F620;
+}
+
+/* Valid state — subtle green tick */
+.input-wrap input:valid:not(:placeholder-shown):not(.inp-error) {
+    border-color: #10B98180;
+}
+
+/* Error state */
+.inp-error {
+    border-color: #EF4444 !important;
+    box-shadow: 0 0 0 3px #EF444420 !important;
+}
+.has-error label { color: #EF4444; }
+
+.field-hint {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    margin-top: 0.1rem;
+}
+.field-error {
+    display: none;
+    font-size: 0.72rem;
+    color: #EF4444;
+    font-weight: 500;
+    margin-top: 0.1rem;
+    padding: 0.25rem 0.5rem;
+    background: #EF444412;
+    border-radius: 0.35rem;
+    border-left: 3px solid #EF4444;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   VALIDATION SUMMARY BANNER
+   ════════════════════════════════════════════════════════════════════════ */
+.val-summary {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    padding: 0.75rem 1rem;
+    background: #F59E0B12;
+    border: 1px solid #F59E0B40;
+    border-radius: 0.55rem;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+    color: #92400E;
+    line-height: 1.5;
+}
+.val-summary i {
+    color: #F59E0B;
+    flex-shrink: 0;
+    margin-top: 1px;
+    width: 16px;
+    height: 16px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   RESULT CARD — header enhancement
+   ════════════════════════════════════════════════════════════════════════ */
+.result-header {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+}
+.result-header-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.65rem;
+    background: #10B98118;
+    color: #10B981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.result-header-icon i { width: 20px; height: 20px; }
+.result-header h2 { margin: 0; font-size: 1.1rem; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ADVICE BLOCK
+   ════════════════════════════════════════════════════════════════════════ */
+.result-advice {
+    margin-top: 1rem;
+    border-radius: 0.65rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid var(--border);
+}
+.advice-low    { background:#10B98112; border-color:#10B98140; }
+.advice-medium { background:#F59E0B12; border-color:#F59E0B40; }
+.advice-high   { background:#EF444412; border-color:#EF444440; }
+
+.advice-icon-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.65rem;
+}
+.advice-icon-row i { flex-shrink:0; width:18px; height:18px; }
+.advice-low    .advice-icon-row i { color:#10B981; }
+.advice-medium .advice-icon-row i { color:#F59E0B; }
+.advice-high   .advice-icon-row i { color:#EF4444; }
+
+.advice-heading {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: var(--text);
+}
+.advice-body p {
+    font-size: 0.83rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem;
+    line-height: 1.55;
+}
+
+.advice-amount-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 0.85rem;
+    border-radius: 99px;
+    background: #3B82F618;
+    border: 1px solid #3B82F640;
+}
+.advice-amount-pill i {
+    color: #3B82F6;
+    width: 15px; height: 15px;
+    flex-shrink: 0;
+}
+.advice-amount-pill span:first-of-type {
+    font-weight: 800;
+    font-size: 1rem;
+    color: #3B82F6;
+    font-family: 'JetBrains Mono', monospace;
+}
+.advice-amount-label {
+    font-size: 0.75rem !important;
+    color: var(--text-muted) !important;
+    font-weight: 500 !important;
+}
+.advice-amount-ok { background:#10B98118; border-color:#10B98140; }
+.advice-amount-ok i { color:#10B981; }
+.advice-amount-ok span:first-of-type {
+    color: #10B981;
+    font-size: 0.83rem;
+    font-family: inherit;
+    font-weight: 600;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   PLACEHOLDER — ranges table & tips
+   ════════════════════════════════════════════════════════════════════════ */
+.ranges-table {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 0.6rem;
+    overflow: hidden;
+}
+.ranges-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    padding: 0.6rem 0.85rem;
+    background: var(--surface-2, #f8fafc);
+    border-bottom: 1px solid var(--border);
+    margin: 0;
+}
+.range-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    gap: 0.5rem;
+}
+.range-row:last-child { border-bottom: none; }
+.range-field {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text);
+    min-width: 90px;
+}
+.range-pills {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+.range-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: #3B82F6;
+    background: #3B82F612;
+    border: 1px solid #3B82F630;
+    padding: 0.15rem 0.5rem;
+    border-radius: 99px;
+}
+.range-note {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+}
+
+/* Tips */
+.placeholder-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-top: 1rem;
+}
+.tip {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.tip-icon {
+    width: 26px;
+    height: 26px;
+    border-radius: 0.4rem;
+    background: #3B82F612;
+    color: #3B82F6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.tip-icon i { width: 13px; height: 13px; }
+
+/* Spinner for submit button */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.8s linear infinite; }
+</style>
 {% endblock %}

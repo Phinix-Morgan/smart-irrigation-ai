@@ -71,7 +71,7 @@ def _load_artefacts() -> bool:
         print(f"✅ Models loaded successfully.")
         print(f"   Dataset : {_state['n_rows']:,} rows × {_state['n_cols']} cols")
         print(
-            f"   Accuracy: {_state['acc_tuned']:.4f} (tuned)  |  R²: {_state['r2']:.4f}"
+            f"   Accuracy: {_state['acc_lgb']:.4f} (LightGBM)  |  R²: {_state['r2']:.4f}"
         )
         return True
 

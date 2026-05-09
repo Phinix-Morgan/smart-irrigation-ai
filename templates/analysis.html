@@ -1,222 +1,441 @@
 {% extends "base.html" %}
 {% block title %}Analysis – IrriSmart AI{% endblock %}
 {% block page_title %}Model Analysis{% endblock %}
-
 {% block content %}
 
 <div class="tabs" data-aos="fade-up">
-  <button class="tab active" data-tab="classification">
-    <i data-lucide="cpu"></i> Classification
-  </button>
-  <button class="tab" data-tab="regression">
-    <i data-lucide="trending-up"></i> Regression
-  </button>
-  <button class="tab" data-tab="tuning">
-    <i data-lucide="sliders"></i> Tuning
-  </button>
-  <button class="tab" data-tab="clustering">
-    <i data-lucide="layers"></i> Clustering
-  </button>
+    <button class="tab active" data-tab="classification">
+        <i data-lucide="cpu"></i> Classification
+    </button>
+    <button class="tab" data-tab="regression">
+        <i data-lucide="trending-up"></i> Regression
+    </button>
+    <button class="tab" data-tab="clustering">
+        <i data-lucide="layers"></i> Clustering
+    </button>
 </div>
 
-<!-- Classification Tab -->
+<!-- ══ Classification Tab ══════════════════════════════════════════════════ -->
 <div class="tab-content active" id="tab-classification">
-  <div class="analysis-grid" data-aos="fade-up">
-    <div class="analysis-card full">
-      <h3><i data-lucide="bar-chart-2"></i> Feature Importance – Classification</h3>
-      <img src="{{ url_for('static', filename=state.plots.feat_imp_clf) }}"
-           alt="Feature Importance Classification" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="grid"></i> Confusion Matrix</h3>
-      <img src="{{ url_for('static', filename=state.plots.confusion_matrix) }}"
-           alt="Confusion Matrix" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="info"></i> Metrics at a Glance</h3>
-      <div class="metrics-list">
-        {% for label, val, color in [
-          ("Baseline Accuracy", state.acc_base, "#3B82F6"),
-          ("Tuned Accuracy",    state.acc_tuned, "#8B5CF6"),
-          ("CV Mean Accuracy",  state.cv_mean, "#10B981"),
-          ("CV Std Dev",        state.cv_std, "#F59E0B"),
-        ] %}
-        <div class="metric-row">
-          <span>{{ label }}</span>
-          <span class="metric-pill" style="background:{{ color }}22; color:{{ color }}">
-            {{ val }}
-          </span>
+    <div class="analysis-grid" data-aos="fade-up">
+
+        {% if plots.get("feature_importance_lightgbm") %}
+        <div class="analysis-card full">
+            <h3>
+                <i data-lucide="bar-chart-2"></i>
+                Feature Importance – LightGBM
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.feature_importance_lightgbm) }}"
+                 alt="Feature Importance LightGBM"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
         </div>
-        {% endfor %}
-      </div>
+        {% endif %}
+
+        {% if plots.get("confusion_matrix_lightgbm") %}
+        <div class="analysis-card">
+            <h3>
+                <i data-lucide="grid"></i>
+                Confusion Matrix – LightGBM
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.confusion_matrix_lightgbm) }}"
+                 alt="Confusion Matrix LightGBM"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
+        </div>
+        {% endif %}
+
+        <!-- Classification Metrics -->
+        <div class="analysis-card" style="min-width:0">
+            <h3 style="margin-bottom:1rem">
+                <i data-lucide="info"></i> Classification Metrics
+            </h3>
+
+            <!-- Quick stat pills -->
+            <div style="display:flex; flex-direction:column;
+                        gap:0.5rem; margin-bottom:1.25rem">
+                {% for label, val, color in [
+                    ("LightGBM Accuracy", analysis_metrics.acc_lgb, "#3B82F6"),
+                    ("CV Mean Accuracy",  analysis_metrics.cv_mean, "#8B5CF6"),
+                    ("CV Std Dev",        analysis_metrics.cv_std,  "#10B981"),
+                ] %}
+                <div style="display:flex; justify-content:space-between;
+                             align-items:center;
+                             padding:0.5rem 0.75rem;
+                             background:{{ color }}0d;
+                             border:1px solid {{ color }}30;
+                             border-radius:0.4rem">
+                    <span style="font-size:0.82rem;
+                                  color:var(--text-muted)">
+                        {{ label }}
+                    </span>
+                    <span style="font-size:0.92rem; font-weight:700;
+                                  color:{{ color }};
+                                  font-family:'JetBrains Mono', monospace">
+                        {{ val }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Per-class report table -->
+            <div style="width:100%; overflow-x:auto">
+                <table style="width:100%; border-collapse:collapse;
+                               font-size:0.82rem;
+                               font-family:'JetBrains Mono', monospace">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border)">
+                            <th style="text-align:left;
+                                        padding:0.45rem 0.5rem;
+                                        color:var(--text-muted);
+                                        font-weight:600">
+                                Class
+                            </th>
+                            <th style="text-align:right;
+                                        padding:0.45rem 0.5rem;
+                                        color:var(--text-muted);
+                                        font-weight:600">
+                                Precision
+                            </th>
+                            <th style="text-align:right;
+                                        padding:0.45rem 0.5rem;
+                                        color:var(--text-muted);
+                                        font-weight:600">
+                                Recall
+                            </th>
+                            <th style="text-align:right;
+                                        padding:0.45rem 0.5rem;
+                                        color:var(--text-muted);
+                                        font-weight:600">
+                                F1
+                            </th>
+                            <th style="text-align:right;
+                                        padding:0.45rem 0.5rem;
+                                        color:var(--text-muted);
+                                        font-weight:600">
+                                N
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cls, color in [
+                            ("Low",    "#10B981"),
+                            ("Medium", "#F59E0B"),
+                            ("High",   "#EF4444"),
+                        ] %}
+                        {% set r = analysis_metrics.report.get(cls, {}) %}
+                        <tr style="border-bottom:1px solid var(--border);
+                                    border-left:3px solid {{ color }}">
+                            <td style="padding:0.5rem 0.5rem">
+                                <span style="display:inline-block;
+                                              width:8px; height:8px;
+                                              border-radius:50%;
+                                              background:{{ color }};
+                                              margin-right:0.35rem">
+                                </span>
+                                <strong>{{ cls }}</strong>
+                            </td>
+                            <td style="text-align:right;
+                                        padding:0.5rem 0.5rem;
+                                        color:{{ color }};
+                                        font-weight:600">
+                                {{ "%.4f" | format(r.get("precision", 0)) }}
+                            </td>
+                            <td style="text-align:right;
+                                        padding:0.5rem 0.5rem;
+                                        color:{{ color }};
+                                        font-weight:600">
+                                {{ "%.4f" | format(r.get("recall", 0)) }}
+                            </td>
+                            <td style="text-align:right;
+                                        padding:0.5rem 0.5rem;
+                                        color:{{ color }};
+                                        font-weight:600">
+                                {{ "%.4f" | format(r.get("f1-score", 0)) }}
+                            </td>
+                            <td style="text-align:right;
+                                        padding:0.5rem 0.5rem;
+                                        color:var(--text-muted)">
+                                {{ r.get("support", 0) | int }}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+
+                    <!-- ── Overall Accuracy row — dark-mode safe ── -->
+                    <tfoot>
+                        {% set acc_r = analysis_metrics.report.get(
+                            "accuracy", 0) %}
+                        <tr style="border-top:2px solid var(--border);
+                                   background:var(--surface)">
+                            <td colspan="3"
+                                style="padding:0.55rem 0.5rem;
+                                       font-weight:700;
+                                       color:var(--text)">
+                                Overall Accuracy
+                            </td>
+                            <td style="text-align:right;
+                                       padding:0.55rem 0.5rem;
+                                       color:#3B82F6;
+                                       font-weight:700;
+                                       font-size:0.9rem">
+                                {{ "%.4f" | format(acc_r) }}
+                            </td>
+                            <td style="background:var(--surface)"></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+
+            <!-- Accuracy progress bar -->
+            {% set acc_r = analysis_metrics.report.get("accuracy", 0) %}
+            <div style="margin-top:0.85rem">
+                <div style="display:flex; justify-content:space-between;
+                             font-size:0.75rem; color:var(--text-muted);
+                             margin-bottom:0.3rem">
+                    <span>Accuracy</span>
+                    <span style="color:#3B82F6; font-weight:600">
+                        {{ "%.2f" | format(acc_r * 100) }}%
+                    </span>
+                </div>
+                <div style="background:var(--border); border-radius:99px;
+                             height:6px; overflow:hidden">
+                    <div style="width:{{ (acc_r * 100) | round | int }}%;
+                                 height:100%;
+                                 background:linear-gradient(
+                                     90deg, #3B82F6, #10B981);
+                                 border-radius:99px">
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
-  </div>
 </div>
 
-<!-- Regression Tab -->
+<!-- ══ Regression Tab ══════════════════════════════════════════════════════ -->
 <div class="tab-content" id="tab-regression">
-  <div class="analysis-grid" data-aos="fade-up">
-    <div class="analysis-card full">
-      <h3><i data-lucide="trending-up"></i> Regression Results</h3>
-      <img src="{{ url_for('static', filename=state.plots.regression_results) }}"
-           alt="Regression Results" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="bar-chart-2"></i> Feature Importance – Regression</h3>
-      <img src="{{ url_for('static', filename=state.plots.feat_imp_reg) }}"
-           alt="Feature Importance Regression" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="info"></i> Regression Metrics</h3>
-      <div class="metrics-list">
-        {% for label, val, color in [
-          ("RMSE", state.rmse, "#EF4444"),
-          ("MAE",  state.mae,  "#F59E0B"),
-          ("R²",   state.r2,   "#10B981"),
-        ] %}
-        <div class="metric-row">
-          <span>{{ label }}</span>
-          <span class="metric-pill" style="background:{{ color }}22; color:{{ color }}">
-            {{ val }}
-          </span>
+    <div class="analysis-grid" data-aos="fade-up">
+
+        {% if plots.get("regression_results") %}
+        <div class="analysis-card full">
+            <h3>
+                <i data-lucide="trending-up"></i>
+                Regression Results – Random Forest
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.regression_results) }}"
+                 alt="Regression Results"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
         </div>
-        {% endfor %}
-      </div>
+        {% endif %}
+
+        {% if plots.get("feature_importance_regression") %}
+        <div class="analysis-card">
+            <h3>
+                <i data-lucide="bar-chart-2"></i>
+                Feature Importance – Regression
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.feature_importance_regression) }}"
+                 alt="Feature Importance Regression"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
+        </div>
+        {% endif %}
+
+        <div class="analysis-card">
+            <h3 style="margin-bottom:1rem">
+                <i data-lucide="info"></i> Regression Metrics
+            </h3>
+            <div style="display:flex; flex-direction:column; gap:0.5rem">
+                {% for label, val, color in [
+                    ("RMSE",     analysis_metrics.rmse, "#EF4444"),
+                    ("MAE",      analysis_metrics.mae,  "#F59E0B"),
+                    ("R² Score", analysis_metrics.r2,   "#10B981"),
+                ] %}
+                <div style="display:flex; justify-content:space-between;
+                             align-items:center;
+                             padding:0.6rem 0.85rem;
+                             background:{{ color }}0d;
+                             border:1px solid {{ color }}30;
+                             border-left:4px solid {{ color }};
+                             border-radius:0.4rem">
+                    <span style="font-size:0.85rem; color:var(--text-muted)">
+                        {{ label }}
+                    </span>
+                    <span style="font-size:1rem; font-weight:700;
+                                  color:{{ color }};
+                                  font-family:'JetBrains Mono', monospace">
+                        {{ val }}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+            <p style="margin-top:1rem; font-size:0.78rem;
+                      color:var(--text-muted); line-height:1.6;
+                      padding:0.6rem 0.75rem;
+                      background:var(--surface-2, #f8fafc);
+                      border-radius:0.4rem">
+                <strong>Model:</strong> Random Forest Regressor
+                (100 estimators)<br/>
+                <strong>Target:</strong> Water_Need_mm — derived from
+                irrigation class, temperature, and rainfall
+            </p>
+        </div>
+
     </div>
-  </div>
 </div>
 
-<!-- Tuning Tab -->
-<div class="tab-content" id="tab-tuning">
-  <div class="analysis-grid" data-aos="fade-up">
-    <div class="analysis-card">
-      <h3><i data-lucide="map"></i> GridSearch Heatmap</h3>
-      <img src="{{ url_for('static', filename=state.plots.gridsearch_heatmap) }}"
-           alt="GridSearch Heatmap" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="activity"></i> Overfitting Analysis</h3>
-      <img src="{{ url_for('static', filename=state.plots.overfitting_analysis) }}"
-           alt="Overfitting Analysis" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="settings"></i> Best Parameters</h3>
-      <div class="metrics-list">
-        {% for k, v in state.best_params.items() %}
-        <div class="metric-row">
-          <span>{{ k.replace('_', ' ') }}</span>
-          <span class="metric-pill" style="background:#6366F122; color:#6366F1">{{ v }}</span>
-        </div>
-        {% endfor %}
-        <div class="metric-row">
-          <span>Best CV Score</span>
-          <span class="metric-pill" style="background:#10B98122; color:#10B981">
-            {{ state.best_cv_acc }}
-          </span>
-        </div>
-        <div class="metric-row">
-          <span>Improvement</span>
-          <span class="metric-pill" style="background:#F59E0B22; color:#F59E0B">
-            +{{ "%.4f" % (state.acc_tuned - state.acc_base) }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Clustering Tab -->
+<!-- ══ Clustering Tab ══════════════════════════════════════════════════════ -->
 <div class="tab-content" id="tab-clustering">
-  <div class="analysis-grid" data-aos="fade-up">
-    <div class="analysis-card full">
-      <h3><i data-lucide="scatter-chart"></i> PCA Cluster Visualisation</h3>
-      <img src="{{ url_for('static', filename=state.plots.clustering_pca) }}"
-           alt="Clustering PCA" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="radio"></i> Radar Chart – Cluster Profiles</h3>
-      <img src="{{ url_for('static', filename=state.plots.cluster_radar) }}"
-           alt="Cluster Radar" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="git-branch"></i> Dendrogram</h3>
-      <img src="{{ url_for('static', filename=state.plots.dendrogram) }}"
-           alt="Dendrogram" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="bar-chart"></i> Elbow Method</h3>
-      <img src="{{ url_for('static', filename=state.plots.kmeans_elbow) }}"
-           alt="KMeans Elbow" class="analysis-img"
-           onclick="openLightbox(this.src, this.alt)"/>
-    </div>
-    <div class="analysis-card">
-      <h3><i data-lucide="layers"></i> Clustering Stats</h3>
-      <div class="metrics-list">
-        <div class="metric-row">
-          <span>DBSCAN Clusters</span>
-          <span class="metric-pill" style="background:#3B82F622;color:#3B82F6">
-            {{ state.n_clusters_db }}
-          </span>
+    <div class="analysis-grid" data-aos="fade-up">
+
+        {% if plots.get("clustering_pca_visualisation") %}
+        <div class="analysis-card full">
+            <h3>
+                <i data-lucide="scatter-chart"></i>
+                PCA Cluster Visualisation – K-Means
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.clustering_pca_visualisation) }}"
+                 alt="Clustering PCA"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
         </div>
-        <div class="metric-row">
-          <span>Noise Points</span>
-          <span class="metric-pill" style="background:#EF444422;color:#EF4444">
-            {{ state.n_noise }}
-          </span>
+        {% endif %}
+
+        {% if plots.get("cluster_radar_chart") %}
+        <div class="analysis-card">
+            <h3>
+                <i data-lucide="radio"></i>
+                Radar Chart – Cluster Profiles
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.cluster_radar_chart) }}"
+                 alt="Cluster Radar"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
         </div>
-        {% for label, cnt in state.cluster_dist.items() %}
-        <div class="metric-row">
-          <span>{{ label }}</span>
-          <span class="metric-pill" style="background:#10B98122;color:#10B981">
-            {{ cnt }}
-          </span>
+        {% endif %}
+
+        {% if plots.get("kmeans_elbow") %}
+        <div class="analysis-card">
+            <h3>
+                <i data-lucide="bar-chart"></i>
+                Elbow Method (k=2–10)
+            </h3>
+            <img src="{{ url_for('static',
+                         filename=plots.kmeans_elbow) }}"
+                 alt="KMeans Elbow"
+                 class="analysis-img"
+                 onclick="openLightbox(this.src, this.alt)"/>
         </div>
-        {% endfor %}
-      </div>
+        {% endif %}
+
+        <div class="analysis-card">
+            <h3 style="margin-bottom:1rem">
+                <i data-lucide="layers"></i> Cluster Distribution
+            </h3>
+            {% set cluster_colors = {
+                "Cluster A: High Water Demand": "#EF4444",
+                "Cluster B: Rain-Fed Zone"    : "#3B82F6",
+                "Cluster C: Dry Zone"         : "#F59E0B",
+            } %}
+            <div style="display:flex; flex-direction:column; gap:0.55rem">
+                {% for label, cnt in cluster_dist.items() %}
+                {% set c = cluster_colors.get(label, "#6366F1") %}
+                <div style="display:flex; align-items:center;
+                             justify-content:space-between;
+                             padding:0.6rem 0.85rem;
+                             background:{{ c }}11;
+                             border:1px solid {{ c }}33;
+                             border-left:4px solid {{ c }};
+                             border-radius:0.45rem; gap:1rem">
+                    <div style="display:flex; align-items:center;
+                                 gap:0.5rem; min-width:0">
+                        <span style="width:9px; height:9px;
+                                      border-radius:50%;
+                                      background:{{ c }};
+                                      flex-shrink:0"></span>
+                        <span style="font-size:0.82rem; font-weight:500;
+                                      color:var(--text)">
+                            {{ label }}
+                        </span>
+                    </div>
+                    <span style="font-size:0.92rem; font-weight:700;
+                                  color:{{ c }}; flex-shrink:0">
+                        {{ cnt }} fields
+                    </span>
+                </div>
+                {% else %}
+                <p style="color:var(--text-muted); font-size:0.85rem">
+                    No cluster data available.
+                </p>
+                {% endfor %}
+            </div>
+            <p style="margin-top:0.85rem; font-size:0.75rem;
+                      color:var(--text-muted); line-height:1.6;
+                      padding:0.5rem 0.7rem;
+                      background:var(--surface-2, #f8fafc);
+                      border-radius:0.4rem">
+                Algorithm: K-Means · k=3 · 3,000 sampled fields<br/>
+                Features: Soil Moisture, Temperature, Humidity, Rainfall,
+                Soil pH, Previous Irrigation, Field Area, Wind Speed
+            </p>
+        </div>
+
     </div>
-  </div>
 </div>
 
 <!-- Lightbox -->
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <div class="lightbox-inner" onclick="event.stopPropagation()">
-    <button class="lightbox-close" onclick="closeLightbox()">
-      <i data-lucide="x"></i>
-    </button>
-    <img id="lightboxImg" src="" alt=""/>
-    <div class="lightbox-caption" id="lightboxCaption"></div>
-  </div>
+    <div class="lightbox-inner" onclick="event.stopPropagation()">
+        <button class="lightbox-close" onclick="closeLightbox()">
+            <i data-lucide="x"></i>
+        </button>
+        <img id="lightboxImg" src="" alt=""/>
+        <div class="lightbox-caption" id="lightboxCaption"></div>
+    </div>
 </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Tabs
 document.querySelectorAll(".tab").forEach(tab => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".tab, .tab-content").forEach(el => el.classList.remove("active"));
-    tab.classList.add("active");
-    document.getElementById("tab-" + tab.dataset.tab).classList.add("active");
-  });
+    tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab, .tab-content")
+                .forEach(el => el.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById("tab-" + tab.dataset.tab)
+                .classList.add("active");
+    });
 });
-
 function openLightbox(src, cap) {
-  document.getElementById("lightboxImg").src = src;
-  document.getElementById("lightboxCaption").textContent = cap;
-  document.getElementById("lightbox").classList.add("open");
+    document.getElementById("lightboxImg").src             = src;
+    document.getElementById("lightboxCaption").textContent = cap;
+    document.getElementById("lightbox").classList.add("open");
 }
 function closeLightbox() {
-  document.getElementById("lightbox").classList.remove("open");
+    document.getElementById("lightbox").classList.remove("open");
 }
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
+document.addEventListener("keydown",
+    e => { if (e.key === "Escape") closeLightbox(); });
 </script>
+
+<style>
+.analysis-img {
+    width: 80%;
+    height: auto;
+    display: block;
+    margin: 0.5rem auto 0;
+    cursor: zoom-in;
+    border-radius: 0.35rem;
+    object-fit: contain;
+}
+</style>
 {% endblock %}
