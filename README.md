@@ -213,26 +213,6 @@ python app.py
 
 ---
 
-## Screenshots
-
-```
-Home Page
-
-Dashboard
-
-Quick Prediction
-
-Field Prediction
-
-Analysis
-
-About
-```
-
-(Add screenshots here)
-
----
-
 ## Future Improvements
 
 - Docker Support
